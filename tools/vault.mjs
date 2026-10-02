@@ -7,7 +7,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ITER = 600000;
-const pw = (process.env.VAULT_PASSWORD || "").normalize("NFC");
+// Mot de passe lu dans l'environnement (jamais écrit dans un fichier). Pour changer de mot de passe :
+// VAULT_OLD_PASSWORD sert à déchiffrer, VAULT_PASSWORD à rechiffrer.
+const cmd = process.argv[2];
+const pw = ((cmd === "decrypt" && process.env.VAULT_OLD_PASSWORD) || process.env.VAULT_PASSWORD || "").normalize("NFC");
 if (!pw) { console.error("VAULT_PASSWORD manquant"); process.exit(1); }
 const b64 = u8 => Buffer.from(u8).toString("base64");
 const unb64 = s => new Uint8Array(Buffer.from(s, "base64"));
@@ -18,7 +21,6 @@ const key = async salt => {
 const walk = d => fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]) : [];
 const MIME = { ".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif" };
 
-const cmd = process.argv[2];
 if (cmd === "encrypt") {
   const site = JSON.parse(fs.readFileSync("private/site.json", "utf8"));
   const files = {};

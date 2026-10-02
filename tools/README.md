@@ -12,4 +12,8 @@ VAULT_PASSWORD='…' node tools/vault.mjs decrypt   # recrée private/ (jamais v
 VAULT_PASSWORD='…' node tools/vault.mjs encrypt   # réécrit docs/vault.js
 ```
 
-Le mot de passe n'est écrit dans aucun fichier.
+Le mot de passe est lu dans la variable d'environnement `VAULT_PASSWORD` (réglée dans l'environnement de la session,
+jamais écrite dans un fichier ni dans la conversation).
+
+Changer de mot de passe : définir `VAULT_OLD_PASSWORD` (ancien) et `VAULT_PASSWORD` (nouveau), puis `decrypt` (utilise l'ancien)
+et `encrypt` (utilise le nouveau).
