@@ -282,3 +282,7 @@ main.wide { width: min(980px, 100% - 32px); }
 .remember { display: inline-flex; gap: 8px; align-items: center; margin-top: 18px; font-family: var(--serif); font-style: italic; font-size: 1.1rem; color: var(--muted); cursor: pointer; }
 .remember input { accent-color: var(--yellow); width: 16px; height: 16px; }
 .gate-msg { min-height: 1.6em; margin: 14px 0 0; font-family: var(--serif); font-style: italic; font-size: 1.15rem; color: var(--rose); }
+
+.last { margin: 14px 0 0; padding: 8px 14px; border-radius: 3px; font-family: var(--serif); font-style: italic; font-size: 1.2rem; animation: kp-in .3s ease; }
+.last.ok { background: var(--teal-soft); color: var(--teal); }
+.last.ko { background: var(--rose-soft); color: var(--rose); }

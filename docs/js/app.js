@@ -75,8 +75,47 @@
     const t = new Date();
     return pool[Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5) % pool.length];
   };
-  const sentences = r => r.text.replace(/\*/g, "").split(/(?<=[.!?…])\s+(?=[A-ZÉÈÀÂ«])/)
-    .map(s => s.trim()).filter(s => s.length >= 45 && s.length <= 300 && !norm(s).includes(norm(r.title)));
+  const sentences = r => r.text.replace(/\*/g, "").split(/\n\s*\n/).flatMap(p => p.split(/(?<=[.!?…])\s+(?=[A-ZÉÈÀÂ«])/))
+    .map(s => s.trim()).filter(s => s.length >= 45 && s.length <= 300);
+
+  // Dans la citation du jeu bonus, le titre du livre et les noms propres du titre (Dormillouse, Aigoual,
+  // Hiver Solidaire…) sont remplacés par « ... ». On peut ajouter des mots à masquer avec `hide: [...]` dans les données.
+  const fold = s => Array.from(s, c => (c.normalize("NFD")[0] || c).toLowerCase()).join("").replace(/[’‘`]/g, "'");
+  const STOP = new Set("le la les un une des du de au aux ont est pas qui que et en dans par pour sur ce cette son ses mon ma mes nos vos avec sans sous mais ou où".split(" "));
+  const hideCache = new Map();
+  const hiddenTerms = r => {
+    if (hideCache.has(r.id)) return hideCache.get(r.id);
+    const text = r.text.replace(/\*/g, ""), f = fold(text);
+    const words = [...new Set(fold(r.title).split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !STOP.has(w)))];
+    // un mot du titre est masqué s'il s'écrit avec une majuscule en milieu de phrase (nom propre)
+    const proper = words.filter(w => {
+      for (const m of f.matchAll(new RegExp("(?<![a-z0-9])" + w, "g"))) {
+        const prev = text.slice(0, m.index).trimEnd().slice(-1);
+        if (prev && !/[.!?…]/.test(prev) && text[m.index] !== text[m.index].toLowerCase()) return true;
+      }
+      return false;
+    });
+    const terms = [fold(r.title), ...proper, ...(r.hide || []).map(fold)];
+    hideCache.set(r.id, terms);
+    return terms;
+  };
+  const maskSentence = (r, s) => {
+    const f = fold(s), spans = [];
+    hiddenTerms(r).forEach(t => {
+      const re = new RegExp("(?<![a-z0-9])" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+") + "(?:s|x)?(?![a-z0-9])", "g");
+      for (const m of f.matchAll(re)) spans.push([m.index, m.index + m[0].length]);
+    });
+    spans.sort((x, y) => x[0] - y[0]);
+    const merged = [];
+    spans.forEach(sp => {
+      const last = merged[merged.length - 1];
+      if (last && sp[0] <= last[1] + 1 && /^[\s-]*$/.test(s.slice(last[1], sp[0]))) last[1] = Math.max(last[1], sp[1]);
+      else if (!last || sp[0] >= last[1]) merged.push([...sp]);
+    });
+    let out = "", at = 0;
+    merged.forEach(([i, j]) => { out += s.slice(at, i) + "..."; at = j; });
+    return out + s.slice(at);
+  };
 
   // Tirage du jeu bonus : toutes les phrases de tous les commentaires sont mélangées dans un « sac ».
   // Un commentaire long contient plus de phrases, donc sort plus souvent (pondération par la longueur),
@@ -164,42 +203,36 @@
     }
 
     // jeu bonus : une phrase tirée au hasard dans tous les commentaires
-    function bonus(played, won) {
+    function bonus(played, won, last) {
       const pick = pickBonus();
       if (!pick) return reset();
       frame(`
         <div class="quiz-top"><span class="eyebrow">Jeu bonus · <em>Devine le livre</em></span>
-          <button type="button" class="link" id="quiz-close">Fermer</button></div>
+          <button type="button" class="link" id="quiz-close">Terminer</button></div>
+        ${last ? `<p class="last ${last.good ? "ok" : "ko"}">${last.good ? "✓ Bravo, c'était bien « " : "✗ Raté, c'était « "}${esc(last.title)} »</p>` : ""}
         <p class="level">De quel commentaire vient cette phrase ?</p>
-        <blockquote class="guess">« ${esc(pick.s)} »</blockquote>
+        <blockquote class="guess">« ${esc(maskSentence(pick.r, pick.s))} »</blockquote>
         <form class="guess-search" id="guess-form" autocomplete="off">
-          <input id="guess-input" type="search" placeholder="Cherche le livre (titre ou auteur)…" aria-label="Cherche le livre">
+          <input id="guess-input" type="search" placeholder="Cherche le livre (titre ou auteur), puis Entrée…" aria-label="Cherche le livre">
           <ul class="suggest" id="guess-list" hidden></ul>
         </form>
-        <div id="bonus-result"></div>
         ${played ? `<p class="tally">Bonus : ${won} / ${played}</p>` : ""}`);
       box.querySelector("#quiz-close").onclick = reset;
       const input = box.querySelector("#guess-input"), list = box.querySelector("#guess-list");
       input.focus();
-      let matches = [], answered = false;
+      let matches = [];
 
+      // on valide la réponse et on enchaîne tout de suite sur la citation suivante
       const answer = r => {
-        if (answered) return;
-        answered = true;
         const good = r.id === pick.r.id;
-        input.value = r.title; input.disabled = true; list.hidden = true;
-        input.classList.add(good ? "right" : "wrong");
-        box.querySelector("#bonus-result").innerHTML = `
-          <p class="msg"><em>${good ? "Bravo, c'est bien celui-là !" : "Raté… c'était « " + esc(pick.r.title) + " »."}</em></p>
-          <button type="button" class="btn" id="again">Une autre phrase →</button>
-          <button type="button" class="btn ghost" id="done">Terminer</button>`;
-        box.querySelector("#again").onclick = () => bonus(played + 1, won + (good ? 1 : 0));
-        box.querySelector("#done").onclick = reset;
+        bonus(played + 1, won + (good ? 1 : 0), { good, title: pick.r.title });
       };
 
       input.addEventListener("input", () => {
         const q = norm(input.value.trim());
         matches = q ? reviews.filter(r => norm(r.title + " " + r.author).includes(q)) : [];
+        // un titre écrit en entier passe en premier
+        matches.sort((x, y) => (norm(y.title) === q) - (norm(x.title) === q));
         list.hidden = !q;
         list.innerHTML = matches.length
           ? matches.map((r, n) => `<li><button type="button" data-n="${n}"><strong>${esc(r.title)}</strong>${r.author ? `<em>${esc(r.author)}</em>` : ""}</button></li>`).join("")
