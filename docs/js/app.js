@@ -140,24 +140,29 @@
     return byKey.get(key);
   };
 
-  const quizHtml = () => {
-    const book = dayBook();
-    if (!book) return "";
-    return `<section class="quiz" id="quiz" aria-live="polite">
-      <button type="button" class="quiz-banner" id="quiz-start">
+  // Score du jour (null tant que les 5 questions n'ont pas été faites aujourd'hui).
+  let scoreToday = null;
+  const doneToday = () => {
+    if (scoreToday !== null) return scoreToday;
+    try { const v = localStorage.getItem("quiz:" + todayKey()); if (v !== null) return +v; } catch (e) {}
+    return null;
+  };
+  const bannerHtml = () => {
+    const book = dayBook(), done = doneToday();
+    return `<button type="button" class="quiz-banner" id="quiz-start">
         <span class="spark">✦</span>
         <span class="qtxt"><strong>Test ta mémoire !</strong>
-        <em>Aujourd'hui, ${esc(book.title)} !</em></span>
-        <span class="go">Jouer →</span>
-      </button></section>`;
+        <em>${done === null ? `Aujourd'hui, ${esc(book.title)} !` : `Fait aujourd'hui : ${done} / 5 — le jeu bonus reste ouvert`}</em></span>
+        <span class="go">${done === null ? "Jouer →" : "Jeu bonus →"}</span>
+      </button>`;
   };
+  const quizHtml = () => dayBook() ? `<section class="quiz" id="quiz" aria-live="polite">${bannerHtml()}</section>` : "";
 
   function initQuiz() {
     const box = document.getElementById("quiz");
     if (!box) return;
-    const banner = box.innerHTML;
     const book = dayBook();
-    const start = () => { box.querySelector("#quiz-start").onclick = () => askQuestion(0, []); };
+    const start = () => { box.querySelector("#quiz-start").onclick = () => doneToday() === null ? askQuestion(0, []) : bonus(0, 0); };
     start();
 
     const frame = inner => { box.innerHTML = `<div class="quiz-card">${inner}</div>`; };
@@ -184,6 +189,7 @@
     function showScore(answers) {
       const res = book.quiz.slice(0, 5).map((q, n) => ({ q, a: answers[n], ok: isRight(answers[n], q) }));
       const score = res.filter(x => x.ok).length;
+      scoreToday = score;
       try { localStorage.setItem("quiz:" + todayKey(), score); } catch (e) {}
       const msg = ["Il faut relire tes commentaires !", "Aïe… relis-moi ça.", "Pas mal, mais tu peux mieux faire.", "Bien joué, la mémoire est là.", "Très bien, presque parfait !", "Sans faute, mémoire d'éléphant !"][score];
       frame(`
@@ -244,7 +250,7 @@
       box.querySelector("#guess-form").onsubmit = e => { e.preventDefault(); if (matches.length) answer(matches[0]); };
     }
 
-    function reset() { box.innerHTML = banner; start(); }
+    function reset() { box.innerHTML = bannerHtml(); start(); }
   }
 
   const carnet = () => `
