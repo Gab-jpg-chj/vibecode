@@ -129,7 +129,15 @@
     const all = reviews.flatMap(r => sentences(r).map((s, i) => ({ key: r.id + "|" + i, r, s })));
     if (!all.length) return null;
     const byKey = new Map(all.map(x => [x.key, x]));
-    let bag = store.get("bonus:sbag", []).filter(k => byKey.has(k));
+    // Le sac est reconstruit si la liste des phrases n'a jamais été mémorisée (première visite avec cette version) ;
+    // ensuite, les phrases ajoutées plus tard (nouveau livre) sont glissées au hasard dans le sac en cours.
+    const known = store.get("bonus:sknown", null);
+    let bag = known ? store.get("bonus:sbag", []).filter(k => byKey.has(k)) : [];
+    if (known) {
+      const seen = new Set(known);
+      [...byKey.keys()].filter(k => !seen.has(k)).forEach(k => bag.splice(Math.floor(Math.random() * (bag.length + 1)), 0, k));
+    }
+    store.set("bonus:sknown", [...byKey.keys()]);
     if (!bag.length) {
       const last = store.get("bonus:slast", "");
       bag = shuffle([...byKey.keys()]);
