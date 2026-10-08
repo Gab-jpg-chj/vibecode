@@ -1,5 +1,5 @@
 (() => {
-  const { sections, reviews, pamphlets } = window.SITE;
+  const { sections, reviews, pamphlets, philo = [] } = window.SITE;
   const app = document.getElementById("app");
   document.getElementById("year").textContent = new Date().getFullYear();
 
@@ -155,13 +155,30 @@
     try { const v = localStorage.getItem("quiz:" + todayKey()); if (v !== null) return +v; } catch (e) {}
     return null;
   };
+  const reflectDone = () => { try { return localStorage.getItem("reflect:" + todayKey()) !== null; } catch (e) { return false; } };
+  const dayPhilo = () => {
+    if (!philo.length) return null;
+    const t = new Date();
+    return philo[Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5) % philo.length];
+  };
+  // Deux questions ouvertes sur le livre du jour (données `open`, sinon questions génériques) + une question philosophique.
+  const reflectItems = book => {
+    const own = book.open || [];
+    const items = [
+      own[0] || { t: "avis", q: "Quel est l'argument central de l'auteur ? Formule-le avec tes mots, sans relire.", pistes: (book.notes || []).map(n => n.title) },
+      own[1] || { t: "avis", q: "Es-tu d'accord avec l'auteur ? Qu'est-ce qui te résiste dans ce livre ?", pistes: [] }
+    ];
+    const ph = dayPhilo();
+    if (ph) items.push({ t: "philo", theme: ph.theme, q: ph.q, pistes: ph.pistes || [] });
+    return items;
+  };
   const bannerHtml = () => {
     const book = dayBook(), done = doneToday();
     return `<button type="button" class="quiz-banner" id="quiz-start">
         <span class="spark">✦</span>
         <span class="qtxt"><strong>Test ta mémoire !</strong>
-        <em>${done === null ? `Aujourd'hui, ${esc(book.title)} !` : `Fait aujourd'hui : ${done} / 5 — le jeu bonus reste ouvert`}</em></span>
-        <span class="go">${done === null ? "Jouer →" : "Jeu bonus →"}</span>
+        <em>${done === null ? `Aujourd'hui, ${esc(book.title)} !` : `Fait aujourd'hui : ${done} / 5 — ${reflectDone() ? "le jeu bonus reste ouvert" : "à toi de réfléchir, puis jeu bonus"}`}</em></span>
+        <span class="go">${done === null ? "Jouer →" : reflectDone() ? "Jeu bonus →" : "Réfléchir →"}</span>
       </button>`;
   };
   const quizHtml = () => dayBook() ? `<section class="quiz" id="quiz" aria-live="polite">${bannerHtml()}</section>` : "";
@@ -170,7 +187,7 @@
     const box = document.getElementById("quiz");
     if (!box) return;
     const book = dayBook();
-    const start = () => { box.querySelector("#quiz-start").onclick = () => doneToday() === null ? askQuestion(0, []) : bonus(0, 0); };
+    const start = () => { box.querySelector("#quiz-start").onclick = () => doneToday() === null ? askQuestion(0, []) : reflectDone() ? bonus(0, 0) : reflect(0); };
     start();
 
     const frame = inner => { box.innerHTML = `<div class="quiz-card">${inner}</div>`; };
@@ -211,9 +228,60 @@
             <div><strong>${esc(x.q.q)}</strong>
             <span>Ta réponse : <em>${x.a ? esc(x.a) : "—"}</em></span>
             ${x.ok ? "" : `<span>Bonne réponse : <b>${esc(x.q.r)}</b></span>`}</div></li>`).join("")}</ol>
-        <button type="button" class="btn" id="quiz-bonus">Jeu bonus →</button>`);
+        <button type="button" class="btn" id="quiz-bonus">Réfléchir →</button>`);
       box.querySelector("#quiz-close").onclick = reset;
-      box.querySelector("#quiz-bonus").onclick = () => bonus(0, 0);
+      box.querySelector("#quiz-bonus").onclick = () => reflect(0);
+    }
+
+    // questions ouvertes : 2 sur le livre du jour, puis 1 question philosophique ; la réponse s'écrit avant de voir les pistes
+    const REFLECT_LABEL = { pourquoi: "Pourquoi ?", compare: "Compare", avis: "Ton avis", philo: "Question philosophique" };
+    function reflect(i) {
+      const items = reflectItems(book), it = items[i], last = i === items.length - 1;
+      frame(`
+        <div class="quiz-top"><span class="eyebrow">Réfléchir · <em>${it.t === "philo" ? esc(it.theme) : esc(book.title)}</em></span>
+          <button type="button" class="link" id="quiz-close">Fermer</button></div>
+        <div class="dots">${items.map((_, n) => `<i class="${n < i ? "done" : n === i ? "now" : ""}"></i>`).join("")}</div>
+        <p class="level">${REFLECT_LABEL[it.t] || "Question"} · ${i + 1} / ${items.length}</p>
+        <h2 class="qtitle">${esc(it.q)}</h2>
+        <form id="reflect-form">
+          <textarea id="reflect-answer" rows="6" placeholder="Réponds avec tes mots : une thèse, deux arguments, une objection…" aria-label="Ta réponse"></textarea>
+          <div class="reflect-actions"><button type="submit" class="btn">Valider ma réponse</button>
+          <button type="button" class="link" id="reflect-skip">${last ? "Passer · jeu bonus →" : "Passer →"}</button></div>
+        </form>`);
+      box.querySelector("#quiz-close").onclick = reset;
+      const area = box.querySelector("#reflect-answer"); area.focus();
+      const next = () => last ? finish() : reflect(i + 1);
+      const finish = () => { try { localStorage.setItem("reflect:" + todayKey(), "1"); } catch (e) {} bonus(0, 0); };
+      box.querySelector("#reflect-skip").onclick = next;
+      box.querySelector("#reflect-form").onsubmit = e => {
+        e.preventDefault();
+        const a = area.value.trim();
+        if (!a) return next();
+        const hist = store.get("reflect:history", []);
+        hist.push({ d: todayKey(), book: it.t === "philo" ? null : book.id, t: it.t, q: it.q, a });
+        store.set("reflect:history", hist.slice(-300));
+        showPistes(i, it, a, last, next);
+      };
+    }
+
+    function showPistes(i, it, answer, last, next) {
+      frame(`
+        <div class="quiz-top"><span class="eyebrow">Réfléchir · <em>${it.t === "philo" ? esc(it.theme) : esc(book.title)}</em></span>
+          <button type="button" class="link" id="quiz-close">Fermer</button></div>
+        <h2 class="qtitle">${esc(it.q)}</h2>
+        <p class="level">Ta réponse</p>
+        <blockquote class="myanswer">${esc(answer).replace(/\n/g, "<br>")}</blockquote>
+        ${it.pistes && it.pistes.length ? `<p class="level">Pistes de réflexion</p>
+        <ul class="pistes">${it.pistes.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
+        <p class="hint"><em>Compare : as-tu une thèse nette, des arguments, une objection, un exemple tiré de tes lectures ?</em></p>` : ""}
+        <div class="reflect-actions"><button type="button" class="btn" id="reflect-next">${last ? "Jeu bonus →" : "Question suivante →"}</button>
+        <button type="button" class="link" id="reflect-copy">Copier ma réponse</button></div>`);
+      box.querySelector("#quiz-close").onclick = reset;
+      box.querySelector("#reflect-next").onclick = next;
+      box.querySelector("#reflect-copy").onclick = e => {
+        const txt = it.q + "\n\n" + answer;
+        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { e.target.textContent = "Copié ✓"; }, () => { e.target.textContent = "Copie impossible"; });
+      };
     }
 
     // jeu bonus : une phrase tirée au hasard dans tous les commentaires
