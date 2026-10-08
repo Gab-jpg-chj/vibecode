@@ -366,3 +366,8 @@ main.wide { width: min(980px, 100% - 32px); }
 .livres li.mine { border-left-color: var(--teal); background: var(--teal-soft); }
 .livres a { text-decoration: none; } .livres strong { font-family: var(--serif); font-size: 1.2rem; font-weight: 500; }
 .livres span { display: block; color: var(--muted); margin-top: 2px; }
+
+.tl-box { position: relative; display: block; width: 100%; }
+.star { position: absolute; top: -9px; right: -7px; font-size: 1.15rem; line-height: 1; color: var(--yellow); text-shadow: 0 0 0 var(--bg), 0 1px 2px rgba(0,0,0,.25); pointer-events: none; }
+.star-inline { color: var(--yellow); font-size: 1.05rem; }
+.recap .mark { text-align: center; min-width: 3.4ch; }
