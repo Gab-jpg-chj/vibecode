@@ -170,7 +170,7 @@
       own[1] || { t: "avis", q: "Es-tu d'accord avec l'auteur ? Qu'est-ce qui te résiste dans ce livre ?", pistes: [] }
     ];
     const ph = dayPhilo();
-    if (ph) items.push({ t: "philo", theme: ph.theme, q: ph.q, pistes: ph.pistes || [] });
+    if (ph) items.push({ t: "philo", theme: ph.theme, q: ph.q, pistes: ph.pistes || [], livres: ph.livres || [] });
     return items;
   };
   const bannerHtml = () => {
@@ -246,6 +246,9 @@
         <h2 class="qtitle">${esc(it.q)}</h2>
         <form id="reflect-form">
           <textarea id="reflect-answer" rows="6" placeholder="Réponds avec tes mots : une thèse, deux arguments, une objection…" aria-label="Ta réponse"></textarea>
+          ${it.t === "philo" ? `<label class="reflect-book"><span class="level">Quel livre lu utiliserais-tu pour y répondre ?</span>
+            <input id="reflect-book" type="text" list="reflect-books" autocomplete="off" placeholder="Un titre de ton carnet…" aria-label="Livre utilisé pour répondre">
+            <datalist id="reflect-books">${reviews.map(r => `<option value="${esc(r.title)}"></option>`).join("")}</datalist></label>` : ""}
           <div class="reflect-actions"><button type="submit" class="btn">Valider ma réponse</button>
           <button type="button" class="link" id="reflect-skip">${last ? "Passer · jeu bonus →" : "Passer →"}</button></div>
         </form>`);
@@ -258,14 +261,15 @@
         e.preventDefault();
         const a = area.value.trim();
         if (!a) return next();
+        const bookIn = box.querySelector("#reflect-book"), chosen = bookIn ? bookIn.value.trim() : "";
         const hist = store.get("reflect:history", []);
-        hist.push({ d: todayKey(), book: it.t === "philo" ? null : book.id, t: it.t, q: it.q, a });
+        hist.push({ d: todayKey(), book: it.t === "philo" ? null : book.id, t: it.t, q: it.q, a, ...(chosen ? { used: chosen } : {}) });
         store.set("reflect:history", hist.slice(-300));
-        showPistes(i, it, a, last, next);
+        showPistes(i, it, a, last, next, chosen);
       };
     }
 
-    function showPistes(i, it, answer, last, next) {
+    function showPistes(i, it, answer, last, next, chosen) {
       frame(`
         <div class="quiz-top"><span class="eyebrow">Réfléchir · <em>${it.t === "philo" ? esc(it.theme) : esc(book.title)}</em></span>
           <button type="button" class="link" id="quiz-close">Fermer</button></div>
@@ -275,6 +279,13 @@
         ${it.pistes && it.pistes.length ? `<p class="level">Pistes de réflexion</p>
         <ul class="pistes">${it.pistes.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
         <p class="hint"><em>Compare : as-tu une thèse nette, des arguments, une objection, un exemple tiré de tes lectures ?</em></p>` : ""}
+        ${it.livres && it.livres.length ? `<p class="level">Quel livre lu utiliserais-tu pour y répondre ?</p>
+        ${chosen ? `<p class="hint">Ton choix : <em>${esc(chosen)}</em></p>` : ""}
+        <ul class="livres">${it.livres.map(l => { const b = bookOf(l.b); if (!b) return "";
+          const mine = chosen && norm(b.title).includes(norm(chosen)) || chosen && norm(chosen).includes(norm(b.title));
+          return `<li class="${mine ? "mine" : ""}"><a href="#/carnet/${b.id}"><strong>${esc(b.title)}</strong>${b.author ? ` <em>· ${esc(b.author)}</em>` : ""}</a>
+            <span>${esc(l.these)}</span></li>`; }).join("")}</ul>
+        <p class="hint"><em>Thèses tirées de tes notes sur chaque livre.</em></p>` : ""}
         <div class="reflect-actions"><button type="button" class="btn" id="reflect-next">${last ? "Jeu bonus →" : "Question suivante →"}</button>
         <button type="button" class="link" id="reflect-copy">Copier ma réponse</button></div>`);
       box.querySelector("#quiz-close").onclick = reset;

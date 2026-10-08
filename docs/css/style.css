@@ -357,3 +357,12 @@ main.wide { width: min(980px, 100% - 32px); }
 .tk { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; bottom: -6px; }
 .tk b { font-family: var(--serif); font-size: .95rem; font-weight: 500; white-space: nowrap; }
 .tk i { width: 11px; height: 11px; border-radius: 50%; background: var(--card); border: 2px solid var(--yellow); }
+
+.reflect-book { display: grid; gap: 4px; margin-top: 4px; }
+#reflect-book { width: 100%; padding: 12px 14px; font: inherit; font-family: var(--serif); font-size: 1.15rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+#reflect-book:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.livres { list-style: none; margin: 6px 0 8px; padding: 0; display: grid; gap: 10px; }
+.livres li { padding: 12px 16px; background: var(--bg); border-left: 4px solid var(--line); border-radius: 3px; font-size: .92rem; line-height: 1.5; }
+.livres li.mine { border-left-color: var(--teal); background: var(--teal-soft); }
+.livres a { text-decoration: none; } .livres strong { font-family: var(--serif); font-size: 1.2rem; font-weight: 500; }
+.livres span { display: block; color: var(--muted); margin-top: 2px; }
