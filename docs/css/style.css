@@ -371,3 +371,6 @@ main.wide { width: min(980px, 100% - 32px); }
 .star { position: absolute; top: -9px; right: -7px; font-size: 1.15rem; line-height: 1; color: var(--yellow); text-shadow: 0 0 0 var(--bg), 0 1px 2px rgba(0,0,0,.25); pointer-events: none; }
 .star-inline { color: var(--yellow); font-size: 1.05rem; }
 .recap .mark { text-align: center; min-width: 3.4ch; }
+
+.star.prize::after, .star-inline.prize::after { content: ""; position: absolute; left: 50%; top: 55%; width: .3em; height: .3em; background: #c4573a; border-radius: 50%; transform: translate(-50%, -50%); }
+.star-inline.prize { position: relative; display: inline-block; }
