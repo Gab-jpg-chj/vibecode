@@ -1,7 +1,8 @@
 (() => {
-  const { sections, reviews, pamphlets, philo = [] } = window.SITE;
+  const { sections, reviews, pamphlets, philo = [], dates = [] } = window.SITE;
   const app = document.getElementById("app");
   document.getElementById("year").textContent = new Date().getFullYear();
+  const fl = document.getElementById("frise-link"); if (fl) fl.hidden = false;
 
   const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const paras = t => t.trim().split(/\n\s*\n/).map(p => `<p>${esc(p).replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\n/g, "<br>")}</p>`).join("");
@@ -334,6 +335,7 @@
     <h1>Carnet II</h1>
     <p class="lead">Août 2025 - Aujourd'hui</p>
     ${quizHtml()}
+    ${friseBoxHtml()}
     <div class="filters">
       <input class="search" id="search" type="search" placeholder="Rechercher un titre, un mot…" aria-label="Rechercher un commentaire" autocomplete="off">
       <select id="f-month" aria-label="Mois"><option value="">Mois</option>${monthOpts}</select>
@@ -341,6 +343,120 @@
       <input class="author" id="f-author" type="search" placeholder="Auteur…" aria-label="Auteur : un prénom ou un nom" autocomplete="off">
     </div>
     <div class="list" id="results">${reviewRows(reviews)}</div>`;
+
+  // ---------- Frise chronologique ----------
+  const bookOf = id => reviews.find(r => r.id === id);
+  const sortedDates = () => [...dates].sort((a, b) => a.y - b.y);
+  const centuryLabel = y => { const c = Math.floor((y - 1) / 100) + 1; return ["", "Ier", "IIe", "IIIe", "IVe", "Ve", "VIe", "VIIe", "VIIIe", "IXe", "Xe", "XIe", "XIIe", "XIIIe", "XIVe", "XVe", "XVIe", "XVIIe", "XVIIIe", "XIXe", "XXe", "XXIe"][c] + " siècle"; };
+  const friseHtml = () => {
+    let last = "";
+    const items = sortedDates().map(d => {
+      const c = centuryLabel(d.y), b = bookOf(d.b);
+      const head = c !== last ? `<h2 class="tl-century">${c}</h2>` : "";
+      last = c;
+      return `${head}<li class="tl-item"><span class="tl-y">${d.y}</span><div><strong>${esc(d.k)}</strong>${b ? `<a href="#/carnet/${b.id}"><em>${esc(b.title)}</em></a>` : ""}</div></li>`;
+    }).join("");
+    return `<a class="back" href="#/">← Accueil</a>
+    <h1>Frise chronologique</h1>
+    <p class="lead">Les dates clés de tous les livres du carnet, en quelques mots.</p>
+    ${friseBoxHtml()}
+    <ol class="tl-long">${items}</ol>`;
+  };
+  const friseDoneToday = () => { try { const v = localStorage.getItem("frise:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
+  const friseBoxHtml = () => dates.length >= 5 ? `<section class="quiz frise" id="frise" aria-live="polite">${friseBanner()}</section>` : "";
+  const friseBanner = () => {
+    const done = friseDoneToday();
+    return `<button type="button" class="quiz-banner" id="frise-start">
+        <span class="spark">⟷</span>
+        <span class="qtxt"><strong>Frise chrono</strong>
+        <em>${done === null ? "5 dates du jour à replacer sur la frise" : `Fait aujourd'hui : ${done} / 5 — rejouer avec d'autres dates`}</em></span>
+        <span class="go">Jouer →</span></button>`;
+  };
+  const seeded = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const shuffleWith = (arr, rand) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const pickFrise = rand => {
+    const seen = new Set(), out = [];
+    for (const d of shuffleWith(dates, rand)) { if (!seen.has(d.y)) { seen.add(d.y); out.push(d); if (out.length === 5) break; } }
+    return out;
+  };
+
+  function initFrise() {
+    const box = document.getElementById("frise");
+    if (!box) return;
+    const dayNo = () => { const t = new Date(); return Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5); };
+    const start = () => { box.querySelector("#frise-start").onclick = () => play(friseDoneToday() === null); };
+    start();
+    const reset = () => { box.innerHTML = friseBanner(); start(); };
+
+    function play(daily) {
+      const rand = daily ? seeded(dayNo() * 7919 + 13) : Math.random;
+      const set = pickFrise(rand);                         // 5 événements à placer
+      const slots = [...set].sort((a, b) => a.y - b.y);    // 5 dates, de la plus ancienne à la plus récente
+      const order = shuffleWith(set.map((_, i) => i), rand); // ordre d'affichage des étiquettes
+      const placed = Array(5).fill(null);                  // placed[slot] = index dans `set`
+      let sel = null, checked = false;
+
+      const chip = (idx, extra = "") => `<button type="button" class="chip${sel === idx ? " sel" : ""}${extra}" draggable="${checked ? "false" : "true"}" data-chip="${idx}">${esc(set[idx].k)}</button>`;
+      const render = () => {
+        const pool = order.filter(i => !placed.includes(i));
+        const ok = n => placed[n] !== null && set[placed[n]].y === slots[n].y;
+        const allPlaced = placed.every(x => x !== null);
+        const score = checked ? slots.filter((_, n) => ok(n)).length : 0;
+        box.innerHTML = `<div class="quiz-card">
+          <div class="quiz-top"><span class="eyebrow">Frise chrono · <em>${daily ? "5 dates du jour" : "5 dates bonus"}</em></span>
+            <button type="button" class="link" id="frise-close">Fermer</button></div>
+          <p class="level">${checked ? "Ton résultat" : sel !== null ? "Choisis la date de l'événement sélectionné" : "Touche un événement, puis une date (ou fais-le glisser)"}</p>
+          <div class="tl">${slots.map((d, n) => `
+            <div class="tl-slot${checked ? (ok(n) ? " ok" : " ko") : ""}">
+              <div class="tl-year">${d.y}</div>
+              <div class="tl-drop" data-slot="${n}">${placed[n] !== null ? chip(placed[n]) : `<span class="ph">…</span>`}</div>
+              ${checked && !ok(n) ? `<div class="tl-fix"><b>${esc(d.k)}</b></div>` : ""}
+            </div>`).join("")}</div>
+          ${checked ? `<div class="bigscore">${score}<small> / 5</small></div>
+            <ol class="recap">${slots.map(d => { const b = bookOf(d.b); return `<li class="ok"><span class="mark">${d.y}</span><div><strong>${esc(d.k)}</strong>${b ? `<span><em>${esc(b.title)}</em></span>` : ""}</div></li>`; }).join("")}</ol>
+            <div class="reflect-actions"><button type="button" class="btn" id="frise-again">Une autre frise</button><a class="link" href="#/frise">Voir toute la frise</a></div>`
+          : `<div class="tl-pool" data-pool="1">${pool.map(i => chip(i)).join("") || `<span class="ph">Tout est placé.</span>`}</div>
+            <div class="reflect-actions"><button type="button" class="btn" id="frise-check" ${allPlaced ? "" : "disabled"}>Valider la frise</button></div>`}
+        </div>`;
+        box.querySelector("#frise-close").onclick = reset;
+        if (checked) { box.querySelector("#frise-again").onclick = () => play(false); return; }
+        box.querySelector("#frise-check").onclick = () => {
+          checked = true;
+          const sc = slots.filter((_, n) => ok(n)).length;
+          if (daily) { try { localStorage.setItem("frise:" + todayKey(), sc); } catch (e) {} }
+          render();
+        };
+      };
+
+      const putIn = (idx, slot) => {          // place l'étiquette idx dans la case slot (l'ancienne retourne dans la réserve)
+        const from = placed.indexOf(idx);
+        if (from >= 0) placed[from] = null;
+        placed[slot] = idx; sel = null; render();
+      };
+      const unplace = idx => { const from = placed.indexOf(idx); if (from >= 0) placed[from] = null; sel = null; render(); };
+
+      box.onclick = e => {
+        if (checked) return;
+        const c = e.target.closest(".chip"), drop = e.target.closest(".tl-drop");
+        if (c) {
+          const idx = +c.dataset.chip, inSlot = placed.indexOf(idx) >= 0;
+          if (inSlot) { if (sel !== null) return putIn(sel, placed.indexOf(idx)); return unplace(idx); }
+          sel = sel === idx ? null : idx; return render();
+        }
+        if (drop && sel !== null) putIn(sel, +drop.dataset.slot);
+      };
+      box.ondragstart = e => { const c = e.target.closest(".chip"); if (c && !checked) { e.dataTransfer.setData("text/plain", c.dataset.chip); e.dataTransfer.effectAllowed = "move"; } };
+      box.ondragover = e => { if (!checked && (e.target.closest(".tl-drop") || e.target.closest(".tl-pool"))) e.preventDefault(); };
+      box.ondrop = e => {
+        if (checked) return;
+        const idx = +e.dataTransfer.getData("text/plain"), drop = e.target.closest(".tl-drop");
+        if (isNaN(idx)) return;
+        e.preventDefault();
+        if (drop) putIn(idx, +drop.dataset.slot); else if (e.target.closest(".tl-pool")) unplace(idx);
+      };
+      render();
+    }
+  }
 
   const pamphletList = () => `
     <a class="back" href="#/">← Accueil</a>
@@ -523,7 +639,8 @@
       const r = reviews.find(x => x.id === parts[1]);
       html = r ? review(r) : notFound();
       if (r) title = r.title + " — Mes écrits";
-    } else if (parts[0] === "pamphlets" && !parts[1]) { html = pamphletList(); title = "Pamphlets ironiques — Mes écrits"; }
+    } else if (parts[0] === "frise") { html = friseHtml(); title = "Frise chronologique — Mes écrits"; }
+    else if (parts[0] === "pamphlets" && !parts[1]) { html = pamphletList(); title = "Pamphlets ironiques — Mes écrits"; }
     else if (parts[0] === "pamphlets") {
       const p = pamphlets.find(x => x.id === parts[1]);
       html = p ? pamphlet(p) : notFound();
@@ -536,6 +653,7 @@
     window.scrollTo(0, 0);
 
     initQuiz();
+    initFrise();
 
     const mapBtn = document.getElementById("map-btn");
     if (mapBtn) {
