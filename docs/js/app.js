@@ -395,7 +395,7 @@
       L.circleMarker([p.lat, p.lon], { radius: p.main ? 9 : 6, color: "#fff", weight: 2.5, fillColor: p.main ? "#e3b21b" : "#2f7f79", fillOpacity: 1 })
         .bindTooltip(p.name, { permanent: true, direction: p.dir || "right", offset: { right: [9, 0], left: [-9, 0], top: [0, -9], bottom: [0, 9] }[p.dir || "right"], className: "map-label" }).addTo(map);
     });
-    map.fitBounds(L.latLngBounds(cfg.points.map(p => [p.lat, p.lon])), { padding: [60, 60], maxZoom: cfg.maxZoom || 12 });
+    map.fitBounds(L.latLngBounds(cfg.bounds || cfg.points.map(p => [p.lat, p.lon])), { padding: [60, 60], maxZoom: cfg.maxZoom || 12 });
 
     // gros plans : une petite carte par lieu, sous la carte principale
     if (cfg.insets && cfg.insets.length) {
