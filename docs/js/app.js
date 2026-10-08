@@ -1,5 +1,5 @@
 (() => {
-  const { sections, reviews, pamphlets, philo = [], dates = [] } = window.SITE;
+  const { sections, reviews, pamphlets, philo = [], dates = [], dateGroups = [] } = window.SITE;
   const app = document.getElementById("app");
   document.getElementById("year").textContent = new Date().getFullYear();
   const fl = document.getElementById("frise-link"); if (fl) fl.hidden = false;
@@ -348,19 +348,30 @@
   const bookOf = id => reviews.find(r => r.id === id);
   const sortedDates = () => [...dates].sort((a, b) => a.y - b.y);
   const centuryLabel = y => { const c = Math.floor((y - 1) / 100) + 1; return ["", "Ier", "IIe", "IIIe", "IVe", "Ve", "VIe", "VIIe", "VIIIe", "IXe", "Xe", "XIe", "XIIe", "XIIIe", "XIVe", "XVe", "XVIe", "XVIIe", "XVIIIe", "XIXe", "XXe", "XXIe"][c] + " siècle"; };
+  const shownYear = d => d.show || Math.floor(d.y);
+  // Frise unique : seulement les dates issues des notes, regroupées par période sous des accolades
+  const BRACE = '<svg class="brace" viewBox="0 0 100 14" preserveAspectRatio="none" aria-hidden="true"><path d="M1,13 C1,6 8,8 38,8 C46,8 48,5 50,1 C52,5 54,8 62,8 C92,8 99,6 99,13" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
   const friseHtml = () => {
-    let last = "";
-    const items = sortedDates().map(d => {
-      const c = centuryLabel(d.y), b = bookOf(d.b);
-      const head = c !== last ? `<h2 class="tl-century">${c}</h2>` : "";
-      last = c;
-      return `${head}<li class="tl-item"><span class="tl-y">${d.y}</span><div><strong>${esc(d.e)}</strong>${b ? `<a href="#/carnet/${b.id}"><em>${esc(b.title)}</em></a>` : ""}</div></li>`;
+    const notes = dates.filter(d => d.src === "notes").sort((a, b) => a.y - b.y);
+    const groups = dateGroups.map(g => ({ ...g, items: notes.filter(d => d.g === g.id) })).filter(g => g.items.length);
+    const cols = groups.map(g => `minmax(${Math.max(250, g.items.length * 92)}px, 1fr)`).join(" ");
+    const list = g => `<ul class="tlg-list">${g.items.map(d => {
+      const b = bookOf(d.b);
+      return `<li><span class="tlg-y">${esc(String(shownYear(d)))}</span><div>${esc(d.e)}${b ? `<a href="#/carnet/${b.id}"><em>${esc(b.title)}</em></a>` : ""}</div></li>`;
+    }).join("")}</ul>`;
+    const cells = groups.map((g, i) => {
+      const up = i % 2 === 0, col = i + 1;
+      const top = up ? `<div class="tlg-cell tlg-top" style="grid-column:${col}"><h3>${esc(g.t)}</h3>${list(g)}${BRACE}</div>` : `<div style="grid-column:${col};grid-row:1"></div>`;
+      const axis = `<div class="tlg-axis" style="grid-column:${col}">${g.items.map(d => `<span class="tk"><b>${esc(String(shownYear(d)))}</b><i></i></span>`).join("")}</div>`;
+      const bot = up ? `<div style="grid-column:${col};grid-row:3"></div>` : `<div class="tlg-cell tlg-bot" style="grid-column:${col}">${BRACE}${list(g)}<h3>${esc(g.t)}</h3></div>`;
+      return `${top}${axis}${bot}`;
     }).join("");
     return `<a class="back" href="#/">← Accueil</a>
     <h1>Frise chronologique</h1>
-    <p class="lead">Les dates clés de tous les livres du carnet, en quelques mots.</p>
-    ${dates.length >= 5 ? `<p class="hint"><a href="#/carnet">Le jeu « Frise chrono » du jour t'attend sur la page du Carnet : à toi de retrouver les événements, sans regarder ici !</a></p>` : ""}
-    <ol class="tl-long">${items}</ol>`;
+    <p class="lead">Toutes les dates de mes notes, sur une seule frise : les périodes rapprochées sont regroupées sous des accolades.</p>
+    <p class="hint">Fais défiler la frise vers la droite →</p>
+    <div class="tlh-wrap"><div class="tlh" style="grid-template-columns:${cols}">${cells}</div></div>
+    ${dates.length >= 5 ? `<p class="hint"><a href="#/carnet">Le jeu « Frise chrono » du jour t'attend sur la page du Carnet : retrouve les événements sans regarder ici !</a></p>` : ""}`;
   };
   const friseDoneToday = () => { try { const v = localStorage.getItem("frise:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
   const friseBoxHtml = () => dates.length >= 5 ? `<section class="quiz frise" id="frise" aria-live="polite">${friseBanner()}</section>` : "";
@@ -374,12 +385,21 @@
   };
   const seeded = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const shuffleWith = (arr, rand) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  // 5 dates tirées au hasard, de 5 livres différents si possible (et 5 années différentes)
+  // 5 dates tirées au hasard, plutôt difficiles : jusqu'à 3 issues de recherches (moins connues) et le reste de mes notes,
+  // de livres et d'années différents autant que possible
   const pickFrise = rand => {
     const years = new Set(), books = new Set(), out = [];
-    const pool = shuffleWith(dates, rand);
-    for (const d of pool) { if (!years.has(d.y) && !books.has(d.b)) { years.add(d.y); books.add(d.b); out.push(d); if (out.length === 5) return out; } }
-    for (const d of pool) { if (!years.has(d.y)) { years.add(d.y); out.push(d); if (out.length === 5) break; } }
+    const yr = d => Math.floor(d.y);
+    const take = (list, max, strict) => {
+      for (const d of list) {
+        if (out.length >= 5 || max <= 0) break;
+        if (years.has(yr(d)) || (strict && books.has(d.b)) || out.includes(d)) continue;
+        years.add(yr(d)); books.add(d.b); out.push(d); max--;
+      }
+    };
+    const web = shuffleWith(dates.filter(d => d.src === "web"), rand), notes = shuffleWith(dates.filter(d => d.src !== "web"), rand);
+    take(web, 3, true); take(notes, 5, true); take(web, 5, true);
+    take(notes, 5, false); take(web, 5, false);
     return out;
   };
 
@@ -401,8 +421,8 @@
         <p class="level">Quel événement se cache derrière chaque date ? Écris-le en quelques mots.</p>
         <form id="frise-form" autocomplete="off">
           <div class="tl">${slots.map((d, n) => `
-            <label class="tl-slot"><span class="tl-year">${d.y}</span>
-              <input class="tl-input" data-n="${n}" type="text" placeholder="Que s'est-il passé ?" aria-label="Événement de ${d.y}"></label>`).join("")}</div>
+            <label class="tl-slot"><span class="tl-year">${esc(String(shownYear(d)))}</span>
+              <input class="tl-input" data-n="${n}" type="text" placeholder="Que s'est-il passé ?" aria-label="Événement de ${esc(String(shownYear(d)))}"></label>`).join("")}</div>
           <div class="reflect-actions"><button type="submit" class="btn">Valider la frise</button></div>
         </form></div>`;
       box.querySelector("#frise-close").onclick = reset;
@@ -420,9 +440,9 @@
         <p class="level">Ton résultat</p>
         <div class="bigscore">${score}<small> / 5</small></div>
         <ol class="recap">${res.map(x => { const b = bookOf(x.d.b); return `
-          <li class="${x.ok ? "ok" : "ko"}"><span class="mark">${x.d.y}</span>
+          <li class="${x.ok ? "ok" : "ko"}"><span class="mark">${esc(String(shownYear(x.d)))}</span>
             <div><strong>${esc(x.d.e)}</strong>
-            ${b ? `<span><em>${esc(b.title)}</em></span>` : ""}
+            ${b ? `<span><em>${esc(b.title)}</em> · ${x.d.src === "web" ? "recherche" : "tes notes"}</span>` : ""}
             <span>Ta réponse : <em>${x.a ? esc(x.a) : "—"}</em></span></div></li>`; }).join("")}</ol>
         <div class="reflect-actions"><button type="button" class="btn" id="frise-again">Une autre frise</button><a class="link" href="#/frise">Voir toute la frise</a></div></div>`;
       box.querySelector("#frise-close").onclick = reset;

@@ -338,3 +338,22 @@ main.wide { width: min(980px, 100% - 32px); }
 .tl-input:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
 .tl-slot { cursor: text; }
 @media (max-width: 640px) { .tl-input { text-align: left; } }
+
+/* Frise unique avec accolades */
+.hint { color: var(--muted); font-size: .9rem; margin: 8px 0; } .hint a { text-decoration: none; }
+.tlh-wrap { overflow-x: auto; margin: 26px -16px 10px; padding: 0 16px 14px; -webkit-overflow-scrolling: touch; }
+.tlh { display: grid; grid-template-rows: auto auto auto; width: max-content; min-width: 100%; }
+.tlg-cell { display: flex; flex-direction: column; padding: 0 8px; }
+.tlg-top { justify-content: flex-end; grid-row: 1; }
+.tlg-bot { grid-row: 3; }
+.tlg-cell h3 { font-size: 1.35rem; font-style: italic; color: var(--yellow); margin: 6px 0; text-align: center; }
+.tlg-list { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.tlg-list li { display: flex; gap: 10px; align-items: baseline; font-size: .9rem; line-height: 1.35; }
+.tlg-y { font-family: var(--serif); font-size: 1.05rem; font-weight: 500; min-width: 5.2ch; color: var(--ink); white-space: nowrap; }
+.tlg-list a { display: block; color: var(--muted); font-size: .8rem; text-decoration: none; } .tlg-list a:hover { text-decoration: underline; }
+.brace { display: block; width: calc(100% - 8px); height: 16px; margin: 4px 4px; color: var(--yellow); }
+.tlg-bot .brace { transform: scaleY(-1); }
+.tlg-axis { grid-row: 2; display: flex; justify-content: space-around; align-items: flex-end; border-bottom: 2px solid var(--yellow); padding: 4px 6px 0; min-height: 52px; }
+.tk { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; bottom: -6px; }
+.tk b { font-family: var(--serif); font-size: .95rem; font-weight: 500; white-space: nowrap; }
+.tk i { width: 11px; height: 11px; border-radius: 50%; background: var(--card); border: 2px solid var(--yellow); }
