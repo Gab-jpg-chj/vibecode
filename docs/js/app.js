@@ -433,8 +433,8 @@
         <form id="frise-form" autocomplete="off">
           <div class="tl">${slots.map((d, n) => `
             <label class="tl-slot"><span class="tl-year">${esc(String(shownYear(d)))}</span>
-              <span class="tl-box"><input class="tl-input" data-n="${n}" type="text" placeholder="Que s'est-il passé ?" aria-label="Événement de ${esc(String(shownYear(d)))}${d.src === "web" ? " (date issue de recherches)" : ""}">${d.src === "web" ? `<span class="star${d.prix ? " prize" : ""}" title="${d.prix ? "Prix littéraire (date issue de recherches)" : "Date issue de recherches, pas de tes notes"}" aria-hidden="true">★</span>` : ""}</span></label>`).join("")}</div>
-          <p class="hint"><span class="star-inline">★</span> = date issue de recherches ; <span class="star-inline prize">★</span> = prix littéraire ; les autres cases viennent de tes notes.</p>
+              <span class="tl-box"><input class="tl-input" data-n="${n}" type="text" placeholder="Que s'est-il passé ?" aria-label="Événement de ${esc(String(shownYear(d)))}${d.src === "web" ? " (date issue de recherches)" : ""}">${d.src === "web" ? `<span class="star${d.prix ? " prize" : ""}" title="${d.prix ? "Prix littéraire ou Académie française (date issue de recherches)" : "Date issue de recherches, pas de tes notes"}" aria-hidden="true">★</span>` : ""}</span></label>`).join("")}</div>
+          <p class="hint"><span class="star-inline">★</span> = date issue de recherches ; <span class="star-inline prize">★</span> = prix littéraire ou Académie française ; les autres cases viennent de tes notes.</p>
           <div class="reflect-actions"><button type="submit" class="btn">Valider la frise</button></div>
         </form></div>`;
       box.querySelector("#frise-close").onclick = reset;
