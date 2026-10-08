@@ -333,3 +333,8 @@ main.wide { width: min(980px, 100% - 32px); }
   .tl-year { position: absolute; left: -62px; width: 56px; padding: 0; text-align: center; font-size: 1.15rem; }
   .tl-fix { text-align: left; flex: 1; }
 }
+
+.tl-input { width: 100%; padding: 10px 10px; font: inherit; font-family: var(--serif); font-size: 1.05rem; text-align: center; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+.tl-input:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.tl-slot { cursor: text; }
+@media (max-width: 640px) { .tl-input { text-align: left; } }
