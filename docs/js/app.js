@@ -1,5 +1,5 @@
 (() => {
-  const { sections, reviews, pamphlets, philo = [], dates = [], dateGroups = [] } = window.SITE;
+  const { sections, reviews, pamphlets, philo = [], dates = [], dateGroups = [], expos = [] } = window.SITE;
   const app = document.getElementById("app");
   document.getElementById("year").textContent = new Date().getFullYear();
   const fl = document.getElementById("frise-link"); if (fl) fl.hidden = false;
@@ -462,6 +462,84 @@
     }
   }
 
+  // ---------- Expositions ----------
+  const STOPW = new Set("le la les un une des du de au aux et en dans par pour sur sous avec sans est ses son sa the of a an and der die das el los las il".split(" "));
+  const allWorks = () => expos.flatMap(e => (e.works || []).filter(w => w.src).map(w => ({ ...w, expo: e })));
+  // mots-clés acceptés : champ `k` s'il existe, sinon chaque mot significatif du titre / le nom de famille de l'artiste
+  const titleK = w => w.k || norm(w.title).split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOPW.has(t)).map(t => [t]);
+  const artistK = w => w.ak || [[norm(w.artist).split(/[^a-z0-9]+/).filter(Boolean).pop() || ""]];
+  const exposHtml = () => {
+    const works = allWorks();
+    const list = expos.map(e => `
+      <article class="expo">
+        <h2>${esc(e.title)}</h2>
+        <p class="by">${[e.place, e.date].filter(Boolean).map(esc).join(" · ")}</p>
+        ${e.notes ? `<div class="expo-notes">${paras(e.notes)}</div>` : ""}
+        <div class="gallery">${(e.works || []).filter(w => w.src).map(w => `
+          <figure><img src="${w.src}" alt="${esc(w.title)}" loading="lazy">
+            <figcaption><strong>${esc(w.title)}</strong><em>${esc(w.artist)}${w.year ? ` · ${esc(String(w.year))}` : ""}</em>${w.note ? `<span>${esc(w.note)}</span>` : ""}</figcaption></figure>`).join("")}</div>
+      </article>`).join("");
+    return `<a class="back" href="#/">← Accueil</a>
+    <h1>Expositions</h1>
+    <p class="lead">Mes notes d'exposition et les toiles que j'ai aimées, à retrouver en jouant.</p>
+    ${works.length >= 3 ? `<section class="quiz" id="expo-game" aria-live="polite">${expoBanner()}</section>` : ""}
+    ${expos.length ? list : `<p class="empty"><em>La première exposition arrive bientôt…</em></p>`}`;
+  };
+  const expoDone = () => { try { const v = localStorage.getItem("expo:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
+  const expoBanner = () => {
+    const d = expoDone();
+    return `<button type="button" class="quiz-banner" id="expo-start">
+        <span class="spark">🖼</span>
+        <span class="qtxt"><strong>Trois toiles du jour</strong>
+        <em>${d === null ? "Retrouve l'artiste et un mot du titre" : `Fait aujourd'hui : ${d} / 6 — rejouer avec d'autres toiles`}</em></span>
+        <span class="go">Jouer →</span></button>`;
+  };
+  function initExpos() {
+    const box = document.getElementById("expo-game");
+    if (!box) return;
+    const works = allWorks();
+    const dayNo = () => { const t = new Date(); return Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5); };
+    const start = () => { box.querySelector("#expo-start").onclick = () => play(expoDone() === null); };
+    start();
+    const reset = () => { box.innerHTML = expoBanner(); start(); };
+    function play(daily) {
+      const picks = shuffleWith(works, daily ? seeded(dayNo() * 104729 + 7) : Math.random).slice(0, 3);
+      box.innerHTML = `<div class="quiz-card">
+        <div class="quiz-top"><span class="eyebrow">Trois toiles · <em>${daily ? "du jour" : "bonus"}</em></span>
+          <button type="button" class="link" id="expo-close">Fermer</button></div>
+        <p class="level">Pour chaque toile : le nom de l'artiste et un mot du titre.</p>
+        <form id="expo-form" autocomplete="off">
+          <div class="expo-picks">${picks.map((w, n) => `
+            <div class="expo-pick"><img src="${w.src}" alt="Toile ${n + 1}">
+              <input data-n="${n}" data-f="a" type="text" placeholder="Artiste" aria-label="Artiste de la toile ${n + 1}">
+              <input data-n="${n}" data-f="t" type="text" placeholder="Un mot du titre" aria-label="Un mot du titre de la toile ${n + 1}"></div>`).join("")}</div>
+          <div class="reflect-actions"><button type="submit" class="btn">Valider</button></div>
+        </form></div>`;
+      box.querySelector("#expo-close").onclick = reset;
+      box.querySelector('input').focus();
+      box.querySelector("#expo-form").onsubmit = e => { e.preventDefault(); show(daily, picks, [...box.querySelectorAll("input")].map(i => i.value.trim())); };
+    }
+    function show(daily, picks, ans) {
+      const res = picks.map((w, n) => ({ w, a: ans[2 * n], t: ans[2 * n + 1],
+        okA: !!ans[2 * n] && isRight(ans[2 * n], { k: artistK(w) }), okT: !!ans[2 * n + 1] && isRight(ans[2 * n + 1], { k: titleK(w) }) }));
+      const score = res.reduce((s, x) => s + x.okA + x.okT, 0);
+      if (daily) { try { localStorage.setItem("expo:" + todayKey(), score); } catch (e) {} }
+      box.innerHTML = `<div class="quiz-card">
+        <div class="quiz-top"><span class="eyebrow">Trois toiles · <em>${daily ? "du jour" : "bonus"}</em></span>
+          <button type="button" class="link" id="expo-close">Fermer</button></div>
+        <p class="level">Ton score</p><div class="bigscore">${score}<small> / 6</small></div>
+        <div class="expo-picks">${res.map(x => `
+          <div class="expo-pick"><img src="${x.w.src}" alt="${esc(x.w.title)}">
+            <p class="${x.okA ? "ok" : "ko"}">${x.okA ? "✓" : "✗"} <b>${esc(x.w.artist)}</b>${x.okA ? "" : `<br><small>Ta réponse : ${x.a ? esc(x.a) : "—"}</small>`}</p>
+            <p class="${x.okT ? "ok" : "ko"}">${x.okT ? "✓" : "✗"} <b>${esc(x.w.title)}</b>${x.okT ? "" : `<br><small>Ta réponse : ${x.t ? esc(x.t) : "—"}</small>`}</p>
+            <small class="muted">${esc(x.w.expo.title)}</small></div>`).join("")}</div>
+        <div class="reflect-actions"><button type="button" class="btn" id="expo-again">Trois autres toiles</button></div></div>`;
+      box.querySelector("#expo-close").onclick = reset;
+      box.querySelector("#expo-again").onclick = () => play(false);
+    }
+  }
+
+
   const pamphletList = () => `
     <a class="back" href="#/">← Accueil</a>
     <h1>Pamphlets ironiques</h1>
@@ -643,7 +721,8 @@
       const r = reviews.find(x => x.id === parts[1]);
       html = r ? review(r) : notFound();
       if (r) title = r.title + " — Mes écrits";
-    } else if (parts[0] === "frise") { html = friseHtml(); title = "Frise chronologique — Mes écrits"; }
+    } else if (parts[0] === "expositions") { html = exposHtml(); title = "Expositions — Mes écrits"; }
+    else if (parts[0] === "frise") { html = friseHtml(); title = "Frise chronologique — Mes écrits"; }
     else if (parts[0] === "pamphlets" && !parts[1]) { html = pamphletList(); title = "Pamphlets ironiques — Mes écrits"; }
     else if (parts[0] === "pamphlets") {
       const p = pamphlets.find(x => x.id === parts[1]);
@@ -658,6 +737,7 @@
 
     initQuiz();
     initFrise();
+    initExpos();
 
     const mapBtn = document.getElementById("map-btn");
     if (mapBtn) {
