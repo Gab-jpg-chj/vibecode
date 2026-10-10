@@ -24,6 +24,10 @@
       const f = r.cover && files[r.cover];
       if (f) r.cover = `data:${f.mime};base64,${f.data}`;
     });
+    (site.expos || []).forEach(e => (e.works || []).forEach(w => {
+      const f = w.img && files[w.img];
+      if (f) w.src = `data:${f.mime};base64,${f.data}`;
+    }));
     window.SITE = site;
     const s = document.createElement("script");
     s.src = "js/app.js";

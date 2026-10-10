@@ -374,3 +374,19 @@ main.wide { width: min(980px, 100% - 32px); }
 
 .star.prize::after, .star-inline.prize::after { content: ""; position: absolute; left: 50%; top: 55%; width: .3em; height: .3em; background: #c4573a; border-radius: 50%; transform: translate(-50%, -50%); }
 .star-inline.prize { position: relative; display: inline-block; }
+
+/* Expositions */
+.expo { margin-top: 44px; padding-top: 8px; border-top: 1px solid var(--line); }
+.expo h2 { font-size: 2.1rem; } .expo .by { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 1.15rem; margin: 2px 0 12px; }
+.expo-notes p { margin: 0 0 12px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 22px; margin-top: 20px; }
+.gallery figure { margin: 0; } .gallery img { width: 100%; height: 260px; object-fit: contain; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+.gallery figcaption { margin-top: 8px; font-size: .9rem; line-height: 1.4; } .gallery figcaption strong { display: block; font-family: var(--serif); font-size: 1.15rem; font-weight: 500; }
+.gallery figcaption em { color: var(--muted); } .gallery figcaption span { display: block; color: var(--muted); margin-top: 4px; }
+.expo-picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 14px 0; }
+.expo-pick { display: grid; gap: 8px; align-content: start; }
+.expo-pick img { width: 100%; height: 240px; object-fit: contain; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+.expo-pick input { width: 100%; padding: 10px 12px; font: inherit; font-family: var(--serif); font-size: 1.05rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+.expo-pick input:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.expo-pick p { margin: 0; font-size: .9rem; line-height: 1.35; } .expo-pick p.ok { color: var(--teal); } .expo-pick p.ko { color: var(--rose); } .expo-pick .muted { color: var(--muted); }
+@media (max-width: 640px) { .expo-picks { grid-template-columns: 1fr; } }
