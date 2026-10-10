@@ -469,7 +469,7 @@
   const dataUri = f => `data:${f.mime};base64,${f.data}`;
   const loadExpo = async e => {
     if (e._loaded || !(e.works || []).length) return;
-    const r = await fetch(`vault/expo-${e.id}.json`, { cache: "default" });
+    const r = await fetch(`vault/expo-${e.id}.json?v=${encodeURIComponent((window.VAULT || {}).iv || "")}`);
     if (!r.ok) throw new Error("expo " + e.id);
     const o = await r.json();
     const files = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, window.VAULT_KEY, unb64(o.ct))));
