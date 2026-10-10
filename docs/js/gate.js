@@ -27,6 +27,7 @@
     (site.expos || []).forEach(e => (e.works || []).forEach(w => {
       const f = w.img && files[w.img];
       if (f) w.src = `data:${f.mime};base64,${f.data}`;
+      w.moreSrc = (w.more || []).map(m => files[m]).filter(Boolean).map(g => `data:${g.mime};base64,${g.data}`);
     }));
     window.SITE = site;
     const s = document.createElement("script");
