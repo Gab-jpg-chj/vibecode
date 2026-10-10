@@ -477,7 +477,7 @@
         ${e.notes ? `<div class="expo-notes">${paras(e.notes)}</div>` : ""}
         <div class="gallery">${(e.works || []).filter(w => w.src).map(w => `
           <figure><img src="${w.src}" alt="${esc(w.title)}" loading="lazy">
-            <figcaption><strong>${esc(w.title)}</strong><em>${esc(w.artist)}${w.year ? ` · ${esc(String(w.year))}` : ""}</em>${w.note ? `<span>${esc(w.note)}</span>` : ""}</figcaption></figure>`).join("")}</div>
+            <figcaption><strong>${esc(w.title)}</strong><em>${esc(w.artist)}${w.year ? ` · ${esc(String(w.year))}` : ""}</em>${w.note ? `<span>${esc(w.note)}</span>` : ""}</figcaption></figure>${(w.moreSrc || []).map(m => `<figure class="more"><img src="${m}" alt="${esc(w.title)} (détail)" loading="lazy"><figcaption><em>${esc(w.title)} · détail</em></figcaption></figure>`).join("")}`).join("")}</div>
       </article>`).join("");
     return `<a class="back" href="#/">← Accueil</a>
     <h1>Expositions</h1>
