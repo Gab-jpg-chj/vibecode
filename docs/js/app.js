@@ -487,7 +487,7 @@
     const list = expos.map(e => `
       <article class="expo">
         <h2>${esc(e.title)}</h2>
-        <p class="by">${[e.place, e.date].filter(Boolean).map(esc).join(" · ")}</p>
+        <p class="by">${[e.with ? `<mark class="with">${esc(e.with)}</mark>` : "", ...[e.place, e.date].filter(Boolean).map(esc)].filter(Boolean).join(" · ")}</p>
         ${e.notes ? `<div class="expo-notes">${paras(e.notes)}</div>` : ""}
         <div class="gallery">${(e.works || []).filter(w => w.src).map(w => `
           <figure><img src="${w.src}" alt="${esc(w.title)}" loading="lazy">
