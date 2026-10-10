@@ -482,7 +482,8 @@
     return `<a class="back" href="#/">← Accueil</a>
     <h1>Expositions</h1>
     <p class="lead">Mes notes d'exposition et les toiles que j'ai aimées, à retrouver en jouant.</p>
-    ${works.length >= 3 ? `<section class="quiz" id="expo-game" aria-live="polite">${expoBanner()}</section>` : ""}
+    ${works.length >= 3 ? `<section class="quiz" id="expo-game" aria-live="polite">${expoBanner()}</section>
+    <section class="quiz" id="zoom-game" aria-live="polite">${zoomBanner()}</section>` : ""}
     ${expos.length ? list : `<p class="empty"><em>La première exposition arrive bientôt…</em></p>`}`;
   };
   const expoDone = () => { try { const v = localStorage.getItem("expo:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
@@ -536,6 +537,79 @@
         <div class="reflect-actions"><button type="button" class="btn" id="expo-again">Trois autres toiles</button></div></div>`;
       box.querySelector("#expo-close").onclick = reset;
       box.querySelector("#expo-again").onclick = () => play(false);
+    }
+  }
+
+
+  // ----- Zoom mystère : une toile très agrandie qui se dévoile en 4 étapes (4, 3, 2 puis 1 point) -----
+  const ZOOMS = [8, 4, 2, 1];
+  const zoomDone = () => { try { const v = localStorage.getItem("zoom:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
+  const zoomBanner = () => {
+    const d = zoomDone();
+    return `<button type="button" class="quiz-banner" id="zoom-start">
+        <span class="spark">🔍</span>
+        <span class="qtxt"><strong>Zoom mystère</strong>
+        <em>${d === null ? "Reconnais la toile avant qu'elle se dévoile" : `Fait aujourd'hui : ${d} / 12 — rejouer avec d'autres toiles`}</em></span>
+        <span class="go">Jouer →</span></button>`;
+  };
+  function initZoom() {
+    const box = document.getElementById("zoom-game");
+    if (!box) return;
+    const works = allWorks();
+    const dayNo = () => { const t = new Date(); return Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5); };
+    const start = () => { box.querySelector("#zoom-start").onclick = () => play(zoomDone() === null); };
+    start();
+    const reset = () => { box.innerHTML = zoomBanner(); start(); };
+    function play(daily) {
+      const rand = daily ? seeded(dayNo() * 15485863 + 3) : Math.random;
+      const rounds = shuffleWith(works, rand).slice(0, 3).map(w => ({ w, x: 25 + rand() * 50, y: 25 + rand() * 50 }));
+      let score = 0;
+      const results = [];
+      const frame = inner => { box.innerHTML = `<div class="quiz-card">
+        <div class="quiz-top"><span class="eyebrow">Zoom mystère · <em>${daily ? "du jour" : "bonus"}</em></span>
+          <button type="button" class="link" id="zoom-close">Fermer</button></div>${inner}</div>`; box.querySelector("#zoom-close").onclick = reset; };
+      const view = (r, step, full) => `<div class="zoom-box ${full ? "full" : ""}"><img src="${r.w.src}" alt="Toile mystère"
+          style="${full ? "" : `transform:scale(${ZOOMS[step]});transform-origin:${r.x}% ${r.y}%`}"></div>`;
+
+      function ask(i, step) {
+        const r = rounds[i];
+        frame(`<div class="dots">${rounds.map((_, n) => `<i class="${n < i ? "done" : n === i ? "now" : ""}"></i>`).join("")}</div>
+          <p class="level">Toile ${i + 1} / 3 · étape ${step + 1} / 4 · <b>${4 - step} point${4 - step > 1 ? "s" : ""}</b> si tu trouves maintenant</p>
+          ${view(r, step, step === 3)}
+          <form id="zoom-form" autocomplete="off"><input id="zoom-answer" type="text" placeholder="L'artiste ou un mot du titre…" aria-label="Ta réponse">
+            <button type="submit" class="btn">Valider</button>
+            <button type="button" class="link" id="zoom-skip">${step === 3 ? "Je ne sais pas" : "Dézoomer →"}</button></form>
+          <p class="gate-msg" id="zoom-msg"></p>`);
+        const input = box.querySelector("#zoom-answer"); input.focus();
+        const next = () => step === 3 ? reveal(i, 0) : ask(i, step + 1);
+        box.querySelector("#zoom-skip").onclick = next;
+        box.querySelector("#zoom-form").onsubmit = e => {
+          e.preventDefault();
+          const a = input.value.trim();
+          if (a && (isRight(a, { k: artistK(r.w) }) || isRight(a, { k: titleK(r.w) }))) return reveal(i, 4 - step);
+          box.querySelector("#zoom-msg").textContent = a ? "Ce n'est pas ça…" : "";
+          input.select();
+          if (a) setTimeout(next, 700);
+        };
+      }
+      function reveal(i, pts) {
+        const r = rounds[i];
+        score += pts; results.push({ r, pts });
+        const last = i === rounds.length - 1;
+        frame(`<p class="level">${pts ? `✓ Bravo, +${pts} point${pts > 1 ? "s" : ""}` : "✗ Raté, +0 point"}</p>
+          ${view(r, 3, true)}
+          <p class="zoom-ans"><strong>${esc(r.w.title)}</strong> · <em>${esc(r.w.artist)}${r.w.year ? ` · ${esc(String(r.w.year))}` : ""}</em></p>
+          <div class="reflect-actions"><button type="button" class="btn" id="zoom-next">${last ? "Voir mon score" : "Toile suivante →"}</button></div>`);
+        box.querySelector("#zoom-next").onclick = () => last ? finish() : ask(i + 1, 0);
+      }
+      function finish() {
+        if (daily) { try { localStorage.setItem("zoom:" + todayKey(), score); } catch (e) {} }
+        frame(`<p class="level">Ton score</p><div class="bigscore">${score}<small> / 12</small></div>
+          <ol class="recap">${results.map(x => `<li class="${x.pts ? "ok" : "ko"}"><span class="mark">${x.pts}</span><div><strong>${esc(x.r.w.title)}</strong><span>${esc(x.r.w.artist)}</span></div></li>`).join("")}</ol>
+          <div class="reflect-actions"><button type="button" class="btn" id="zoom-again">Trois autres toiles</button></div>`);
+        box.querySelector("#zoom-again").onclick = () => play(false);
+      }
+      ask(0, 0);
     }
   }
 
@@ -738,6 +812,7 @@
     initQuiz();
     initFrise();
     initExpos();
+    initZoom();
 
     const mapBtn = document.getElementById("map-btn");
     if (mapBtn) {

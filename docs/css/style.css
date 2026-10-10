@@ -390,3 +390,12 @@ main.wide { width: min(980px, 100% - 32px); }
 .expo-pick input:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
 .expo-pick p { margin: 0; font-size: .9rem; line-height: 1.35; } .expo-pick p.ok { color: var(--teal); } .expo-pick p.ko { color: var(--rose); } .expo-pick .muted { color: var(--muted); }
 @media (max-width: 640px) { .expo-picks { grid-template-columns: 1fr; } }
+
+/* Zoom mystère */
+.zoom-box { position: relative; overflow: hidden; height: 340px; margin: 12px 0; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+.zoom-box img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .6s ease; }
+.zoom-box.full img { object-fit: contain; }
+#zoom-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+#zoom-answer { flex: 1 1 260px; padding: 12px 14px; font: inherit; font-family: var(--serif); font-size: 1.2rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+#zoom-answer:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.zoom-ans { margin: 4px 0 14px; font-family: var(--serif); font-size: 1.25rem; }
