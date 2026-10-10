@@ -399,3 +399,5 @@ main.wide { width: min(980px, 100% - 32px); }
 #zoom-answer { flex: 1 1 260px; padding: 12px 14px; font: inherit; font-family: var(--serif); font-size: 1.2rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
 #zoom-answer:focus { outline: none; border-color: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent); }
 .zoom-ans { margin: 4px 0 14px; font-family: var(--serif); font-size: 1.25rem; }
+
+.expo .with { background: var(--yellow-soft); color: var(--ink); padding: 1px 8px; border-radius: 3px; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--yellow) 70%, transparent); font-style: italic; }
