@@ -21,19 +21,36 @@ const key = async salt => {
 const walk = d => fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]) : [];
 const MIME = { ".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif" };
 
+// Les photos d'une exposition sont chiffrées à part (docs/vault/expo-<id>.json, même clé) : elles ne sont téléchargées
+// et déchiffrées que lorsqu'on ouvre la page Expositions. Tout le reste est dans docs/vault.js.
+const lazyPaths = site => new Set((site.expos || []).flatMap(e => (e.works || []).flatMap(w => [w.img, ...(w.more || [])]).filter(Boolean)));
+const fileOf = rel => ({ mime: MIME[path.extname(rel).toLowerCase()] || "application/octet-stream", data: fs.readFileSync(path.join("private", rel)).toString("base64") });
+const seal = async (k, obj) => { const iv = randomBytes(12); const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, new TextEncoder().encode(JSON.stringify(obj))); return { v: 1, iv: b64(iv), ct: b64(new Uint8Array(ct)) }; };
+
 if (cmd === "encrypt") {
   const site = JSON.parse(fs.readFileSync("private/site.json", "utf8"));
-  const files = {};
-  for (const f of walk("private/img")) files[path.relative("private", f).split(path.sep).join("/")] = { mime: MIME[path.extname(f).toLowerCase()] || "application/octet-stream", data: fs.readFileSync(f).toString("base64") };
-  const salt = randomBytes(16), iv = randomBytes(12);
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await key(salt), new TextEncoder().encode(JSON.stringify({ site, files })));
-  fs.writeFileSync("docs/vault.js", "window.VAULT=" + JSON.stringify({ v: 1, iter: ITER, salt: b64(salt), iv: b64(iv), ct: b64(new Uint8Array(ct)) }) + ";\n");
-  console.log("docs/vault.js écrit —", Object.keys(files).length, "image(s),", site.reviews.length, "livre(s)");
+  const lazy = lazyPaths(site), files = {};
+  for (const f of walk("private/img")) { const rel = path.relative("private", f).split(path.sep).join("/"); if (!lazy.has(rel)) files[rel] = fileOf(rel); }
+  const salt = randomBytes(16), k = await key(salt);
+  const main = await seal(k, { site, files });
+  fs.writeFileSync("docs/vault.js", "window.VAULT=" + JSON.stringify({ v: 1, iter: ITER, salt: b64(salt), iv: main.iv, ct: main.ct }) + ";\n");
+  fs.mkdirSync("docs/vault", { recursive: true });
+  const keep = new Set();
+  for (const e of site.expos || []) {
+    const paths = [...new Set((e.works || []).flatMap(w => [w.img, ...(w.more || [])]).filter(Boolean))].filter(rel => fs.existsSync(path.join("private", rel)));
+    if (!paths.length) continue;
+    const name = `expo-${e.id}.json`; keep.add(name);
+    fs.writeFileSync(path.join("docs/vault", name), JSON.stringify(await seal(k, Object.fromEntries(paths.map(rel => [rel, fileOf(rel)])))));
+  }
+  for (const f of fs.readdirSync("docs/vault")) if (!keep.has(f)) fs.unlinkSync(path.join("docs/vault", f));
+  console.log("docs/vault.js écrit —", Object.keys(files).length, "image(s) intégrée(s),", keep.size, "fichier(s) d'exposition,", site.reviews.length, "livre(s)");
 } else if (cmd === "decrypt") {
   const src = fs.readFileSync("docs/vault.js", "utf8");
   const V = JSON.parse(src.slice(src.indexOf("{"), src.lastIndexOf("}") + 1));
-  const buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(V.iv) }, await key(unb64(V.salt)), unb64(V.ct));
-  const { site, files } = JSON.parse(new TextDecoder().decode(buf));
+  const k = await key(unb64(V.salt));
+  const open = async o => JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, k, unb64(o.ct))));
+  const { site, files } = await open(V);
+  if (fs.existsSync("docs/vault")) for (const f of fs.readdirSync("docs/vault")) Object.assign(files, await open(JSON.parse(fs.readFileSync(path.join("docs/vault", f), "utf8"))));
   fs.mkdirSync("private", { recursive: true });
   fs.writeFileSync("private/site.json", JSON.stringify(site, null, 2));
   for (const [p, f] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join("private", p)), { recursive: true }); fs.writeFileSync(path.join("private", p), Buffer.from(f.data, "base64")); }

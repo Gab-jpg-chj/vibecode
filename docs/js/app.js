@@ -464,6 +464,20 @@
 
   // ---------- Expositions ----------
   const STOPW = new Set("le la les un une des du de au aux et en dans par pour sur sous avec sans est ses son sa the of a an and der die das el los las il".split(" "));
+  // les photos d'une exposition sont chiffrées dans docs/vault/expo-<id>.json et chargées à l'ouverture de la page
+  const unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+  const dataUri = f => `data:${f.mime};base64,${f.data}`;
+  const loadExpo = async e => {
+    if (e._loaded || !(e.works || []).length) return;
+    const r = await fetch(`vault/expo-${e.id}.json`, { cache: "default" });
+    if (!r.ok) throw new Error("expo " + e.id);
+    const o = await r.json();
+    const files = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, window.VAULT_KEY, unb64(o.ct))));
+    e.works.forEach(w => { if (files[w.img]) w.src = dataUri(files[w.img]); w.moreSrc = (w.more || []).map(m => files[m]).filter(Boolean).map(dataUri); });
+    e._loaded = true;
+  };
+  const loadAllExpos = () => Promise.all(expos.map(loadExpo));
+  const exposPending = () => expos.some(e => (e.works || []).length && !e._loaded);
   const allWorks = () => expos.flatMap(e => (e.works || []).filter(w => w.src).map(w => ({ ...w, expo: e })));
   // mots-clés acceptés : champ `k` s'il existe, sinon chaque mot significatif du titre / le nom de famille de l'artiste
   const titleK = w => w.k || norm(w.title).split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOPW.has(t)).map(t => [t]);
@@ -484,6 +498,7 @@
     <p class="lead">Mes notes d'exposition et les toiles que j'ai aimées, à retrouver en jouant.</p>
     ${works.length >= 3 ? `<section class="quiz" id="expo-game" aria-live="polite">${expoBanner()}</section>
     <section class="quiz" id="zoom-game" aria-live="polite">${zoomBanner()}</section>` : ""}
+    ${exposPending() ? `<p class="empty"><em>Chargement des photos…</em></p>` : ""}
     ${expos.length ? list : `<p class="empty"><em>La première exposition arrive bientôt…</em></p>`}`;
   };
   const expoDone = () => { try { const v = localStorage.getItem("expo:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
@@ -813,6 +828,10 @@
     initFrise();
     initExpos();
     initZoom();
+    if (parts[0] === "expositions" && exposPending()) {
+      loadAllExpos().then(() => { if (location.hash.startsWith("#/expositions")) { app.innerHTML = exposHtml(); initExpos(); initZoom(); } })
+        .catch(() => { const m = app.querySelector(".empty em"); if (m) m.textContent = "Photos indisponibles pour le moment (connexion ?)."; });
+    }
 
     const mapBtn = document.getElementById("map-btn");
     if (mapBtn) {

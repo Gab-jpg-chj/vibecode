@@ -17,3 +17,10 @@ jamais écrite dans un fichier ni dans la conversation).
 
 Changer de mot de passe : définir `VAULT_OLD_PASSWORD` (ancien) et `VAULT_PASSWORD` (nouveau), puis `decrypt` (utilise l'ancien)
 et `encrypt` (utilise le nouveau).
+
+## Photos d'exposition
+
+Les photos référencées par `site.json` (champs `img` et `more` des toiles de `expos`) ne sont pas dans `docs/vault.js` :
+elles sont chiffrées avec la même clé dans `docs/vault/expo-<id>.json`, un fichier par exposition. Le navigateur ne les
+télécharge et ne les déchiffre qu'à l'ouverture de la page Expositions, ce qui garde l'accueil léger. `encrypt` et
+`decrypt` gèrent ces fichiers automatiquement ; les images vont toujours dans `private/img/`.
