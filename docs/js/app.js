@@ -1,5 +1,5 @@
 (() => {
-  const { sections, reviews, pamphlets, philo = [], dates = [], dateGroups = [], expos = [] } = window.SITE;
+  const { sections, reviews, pamphlets, philo = [], dates = [], dateGroups = [], expos = [], riddles = [], tf = [] } = window.SITE;
   const app = document.getElementById("app");
   document.getElementById("year").textContent = new Date().getFullYear();
   const fl = document.getElementById("frise-link"); if (fl) fl.hidden = false;
@@ -346,7 +346,8 @@
     <h1>Carnet II</h1>
     <p class="lead">Août 2025 - Aujourd'hui</p>
     ${quizHtml()}
-    ${friseBoxHtml()}
+    ${riddles.length >= 3 ? `<section class="quiz" id="riddle-game" aria-live="polite">${riddleBanner()}</section>` : ""}
+    ${tf.length >= 10 ? `<section class="quiz" id="tf-game" aria-live="polite">${tfBanner()}</section>` : ""}
     <div class="filters">
       <input class="search" id="search" type="search" placeholder="Rechercher un titre, un mot…" aria-label="Rechercher un commentaire" autocomplete="off">
       <select id="f-month" aria-label="Mois"><option value="">Mois</option>${monthOpts}</select>
@@ -382,85 +383,119 @@
     <p class="lead">Toutes les dates de mes notes, sur une seule frise : les périodes rapprochées sont regroupées sous des accolades.</p>
     <p class="hint">Fais défiler la frise vers la droite →</p>
     <div class="tlh-wrap"><div class="tlh" style="grid-template-columns:${cols}">${cells}</div></div>
-    ${dates.length >= 5 ? `<p class="hint"><a href="#/carnet">Le jeu « Frise chrono » du jour t'attend sur la page du Carnet : retrouve les événements sans regarder ici !</a></p>` : ""}`;
-  };
-  const friseDoneToday = () => { try { const v = localStorage.getItem("frise:" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
-  const friseBoxHtml = () => dates.length >= 5 ? `<section class="quiz frise" id="frise" aria-live="polite">${friseBanner()}</section>` : "";
-  const friseBanner = () => {
-    const done = friseDoneToday();
-    return `<button type="button" class="quiz-banner" id="frise-start">
-        <span class="spark">⟷</span>
-        <span class="qtxt"><strong>Frise chrono</strong>
-        <em>${done === null ? "5 dates du jour à replacer sur la frise" : `Fait aujourd'hui : ${done} / 5 — rejouer avec d'autres dates`}</em></span>
-        <span class="go">Jouer →</span></button>`;
+`;
   };
   const seeded = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const shuffleWith = (arr, rand) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  // 5 dates tirées au hasard, plutôt difficiles : jusqu'à 3 issues de recherches (moins connues) et le reste de mes notes,
-  // de livres et d'années différents autant que possible
-  const pickFrise = rand => {
-    const years = new Set(), books = new Set(), out = [];
-    const yr = d => Math.floor(d.y);
-    const take = (list, max, strict) => {
-      for (const d of list) {
-        if (out.length >= 5 || max <= 0) break;
-        if (years.has(yr(d)) || (strict && books.has(d.b)) || out.includes(d)) continue;
-        years.add(yr(d)); books.add(d.b); out.push(d); max--;
-      }
-    };
-    const web = shuffleWith(dates.filter(d => d.src === "web"), rand), notes = shuffleWith(dates.filter(d => d.src !== "web"), rand);
-    take(web, 3, true); take(notes, 5, true); take(web, 5, true);
-    take(notes, 5, false); take(web, 5, false);
-    return out;
-  };
+  // ---------- Qui suis-je ? et Vrai ou faux piégé (contenu tiré de mes notes, niveau difficile) ----------
+  const dayNum = () => { const t = new Date(); return Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5); };
+  const dayScore = k => { try { const v = localStorage.getItem(k + ":" + todayKey()); return v === null ? null : +v; } catch (e) { return null; } };
+  const saveDay = (k, v) => { try { localStorage.setItem(k + ":" + todayKey(), v); } catch (e) {} };
+  const riddleBanner = () => { const d = dayScore("riddle"); return `<button type="button" class="quiz-banner" id="riddle-start">
+      <span class="spark">?</span>
+      <span class="qtxt"><strong>Qui suis-je ?</strong><em>${d === null ? "Trois énigmes, des indices qui se précisent" : `Fait aujourd'hui : ${d} points — rejouer avec d'autres énigmes`}</em></span>
+      <span class="go">Jouer →</span></button>`; };
+  const tfBanner = () => { const d = dayScore("tf"); return `<button type="button" class="quiz-banner" id="tf-start">
+      <span class="spark">≠</span>
+      <span class="qtxt"><strong>Vrai ou faux piégé</strong><em>${d === null ? "Dix affirmations, un détail truqué" : `Fait aujourd'hui : ${d} / 10 — rejouer avec d'autres affirmations`}</em></span>
+      <span class="go">Jouer →</span></button>`; };
+  const titleOf = id => { const r = reviews.find(x => x.id === id); if (r) return r.title; const e = expos.find(x => x.id === id); return e ? `${e.title} · ${e.place || "exposition"}` : ""; };
 
-  function initFrise() {
-    const box = document.getElementById("frise");
+  function initRiddle() {
+    const box = document.getElementById("riddle-game");
     if (!box) return;
-    const dayNo = () => { const t = new Date(); return Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5); };
-    const start = () => { box.querySelector("#frise-start").onclick = () => play(friseDoneToday() === null); };
+    const start = () => { box.querySelector("#riddle-start").onclick = () => play(dayScore("riddle") === null); };
     start();
-    const reset = () => { box.innerHTML = friseBanner(); start(); };
-
-    // on ne voit que les dates : c'est à toi de retrouver l'événement lié à chacune
+    const reset = () => { box.innerHTML = riddleBanner(); start(); };
     function play(daily) {
-      const rand = daily ? seeded(dayNo() * 7919 + 13) : Math.random;
-      const slots = pickFrise(rand).sort((a, b) => a.y - b.y);
-      box.innerHTML = `<div class="quiz-card">
-        <div class="quiz-top"><span class="eyebrow">Frise chrono · <em>${daily ? "5 dates du jour" : "5 dates bonus"}</em></span>
-          <button type="button" class="link" id="frise-close">Fermer</button></div>
-        <p class="level">Quel événement se cache derrière chaque date ? Écris-le en quelques mots.</p>
-        <form id="frise-form" autocomplete="off">
-          <div class="tl">${slots.map((d, n) => `
-            <label class="tl-slot"><span class="tl-year">${esc(String(shownYear(d)))}</span>
-              <span class="tl-box"><input class="tl-input" data-n="${n}" type="text" placeholder="Que s'est-il passé ?" aria-label="Événement de ${esc(String(shownYear(d)))}${d.src === "web" ? " (date issue de recherches)" : ""}">${d.src === "web" ? `<span class="star${d.prix ? " prize" : ""}" title="${d.prix ? "Prix littéraire ou Académie française (date issue de recherches)" : "Date issue de recherches, pas de tes notes"}" aria-hidden="true">★</span>` : ""}</span></label>`).join("")}</div>
-          <p class="hint"><span class="star-inline">★</span> = date issue de recherches ; <span class="star-inline prize">★</span> = prix littéraire ou Académie française ; les autres cases viennent de tes notes.</p>
-          <div class="reflect-actions"><button type="submit" class="btn">Valider la frise</button></div>
-        </form></div>`;
-      box.querySelector("#frise-close").onclick = reset;
-      const inputs = [...box.querySelectorAll(".tl-input")]; inputs[0].focus();
-      box.querySelector("#frise-form").onsubmit = e => { e.preventDefault(); show(daily, slots, inputs.map(i => i.value.trim())); };
-    }
-
-    function show(daily, slots, answers) {
-      const res = slots.map((d, n) => ({ d, a: answers[n], ok: !!(d.k && answers[n] && isRight(answers[n], d)) }));
-      const score = res.filter(x => x.ok).length;
-      if (daily) { try { localStorage.setItem("frise:" + todayKey(), score); } catch (e) {} }
-      box.innerHTML = `<div class="quiz-card">
-        <div class="quiz-top"><span class="eyebrow">Frise chrono · <em>${daily ? "5 dates du jour" : "5 dates bonus"}</em></span>
-          <button type="button" class="link" id="frise-close">Fermer</button></div>
-        <p class="level">Ton résultat</p>
-        <div class="bigscore">${score}<small> / 5</small></div>
-        <ol class="recap">${res.map(x => { const b = bookOf(x.d.b); return `
-          <li class="${x.ok ? "ok" : "ko"}"><span class="mark">${esc(String(shownYear(x.d)))}${x.d.src === "web" ? '<br><span class="star-inline${x.d.prix ? " prize" : ""}">★</span>' : ""}</span>
-            <div><strong>${esc(x.d.e)}</strong>
-            ${b ? `<span><em>${esc(b.title)}</em> · ${x.d.src === "web" ? "recherche" : "tes notes"}</span>` : ""}
-            <span>Ta réponse : <em>${x.a ? esc(x.a) : "—"}</em></span></div></li>`; }).join("")}</ol>
-        <div class="reflect-actions"><button type="button" class="btn" id="frise-again">Une autre frise</button><a class="link" href="#/frise">Voir toute la frise</a></div></div>`;
-      box.querySelector("#frise-close").onclick = reset;
-      box.querySelector("#frise-again").onclick = () => play(false);
+      const rand = daily ? seeded(dayNum() * 2654435 + 11) : Math.random;
+      const rounds = shuffleWith(riddles, rand).slice(0, 3);
+      let total = 0; const results = [];
+      const frame = inner => { box.innerHTML = `<div class="quiz-card"><div class="quiz-top"><span class="eyebrow">Qui suis-je ? · <em>${daily ? "du jour" : "bonus"}</em></span>
+        <button type="button" class="link" id="riddle-close">Fermer</button></div>${inner}</div>`; box.querySelector("#riddle-close").onclick = reset; };
+      function ask(i, step) {
+        const r = rounds[i], max = r.hints.length;
+        frame(`<div class="dots">${rounds.map((_, n) => `<i class="${n < i ? "done" : n === i ? "now" : ""}"></i>`).join("")}</div>
+          <p class="level">Énigme ${i + 1} / 3 · indice ${step + 1} / ${max} · <b>${max - step} point${max - step > 1 ? "s" : ""}</b> si tu trouves maintenant</p>
+          <ol class="hints">${r.hints.slice(0, step + 1).map(h => `<li>${esc(h)}</li>`).join("")}</ol>
+          <form id="riddle-form" autocomplete="off"><input id="riddle-answer" type="text" placeholder="Qui, ou quoi, suis-je ?" aria-label="Ta réponse">
+            <button type="submit" class="btn">Valider</button>
+            <button type="button" class="link" id="riddle-next">${step === max - 1 ? "Je donne ma langue au chat" : "Indice suivant →"}</button></form>
+          <p class="gate-msg" id="riddle-msg"></p>`);
+        const input = box.querySelector("#riddle-answer"); input.focus();
+        const more = () => step === max - 1 ? reveal(i, 0) : ask(i, step + 1);
+        box.querySelector("#riddle-next").onclick = more;
+        box.querySelector("#riddle-form").onsubmit = e => {
+          e.preventDefault();
+          const a = input.value.trim();
+          if (a && isRight(a, { k: r.k })) return reveal(i, max - step);
+          box.querySelector("#riddle-msg").textContent = a ? "Non… un indice de plus (−1 point)." : "";
+          if (a) setTimeout(more, 800);
+        };
+      }
+      function reveal(i, pts) {
+        const r = rounds[i]; total += pts; results.push({ r, pts });
+        const last = i === rounds.length - 1;
+        frame(`<p class="level">${pts ? `✓ Bravo, +${pts} point${pts > 1 ? "s" : ""}` : "✗ Raté, +0 point"}</p>
+          <p class="riddle-ans"><strong>${esc(r.a)}</strong> <em>· ${esc(titleOf(r.b))}</em></p>
+          <ol class="hints done">${r.hints.map(h => `<li>${esc(h)}</li>`).join("")}</ol>
+          <div class="reflect-actions"><button type="button" class="btn" id="riddle-go">${last ? "Voir mon score" : "Énigme suivante →"}</button></div>`);
+        box.querySelector("#riddle-go").onclick = () => last ? finish() : ask(i + 1, 0);
+      }
+      function finish() {
+        if (daily) saveDay("riddle", total);
+        frame(`<p class="level">Ton score</p><div class="bigscore">${total}<small> / ${rounds.reduce((s, r) => s + r.hints.length, 0)}</small></div>
+          <ol class="recap">${results.map(x => `<li class="${x.pts ? "ok" : "ko"}"><span class="mark">${x.pts}</span><div><strong>${esc(x.r.a)}</strong><span>${esc(titleOf(x.r.b))}</span></div></li>`).join("")}</ol>
+          <div class="reflect-actions"><button type="button" class="btn" id="riddle-again">Trois autres énigmes</button></div>`);
+        box.querySelector("#riddle-again").onclick = () => play(false);
+      }
+      ask(0, 0);
     }
   }
+
+  function initTf() {
+    const box = document.getElementById("tf-game");
+    if (!box) return;
+    const start = () => { box.querySelector("#tf-start").onclick = () => play(dayScore("tf") === null); };
+    start();
+    const reset = () => { box.innerHTML = tfBanner(); start(); };
+    function play(daily) {
+      const rand = daily ? seeded(dayNum() * 7368787 + 5) : Math.random;
+      // une affirmation par fait : on évite de montrer la version vraie et la version truquée du même fait dans la même partie
+      const pool = shuffleWith(tf, rand), seen = new Set(), picks = [];
+      for (const x of pool) { if (!seen.has(x.g)) { seen.add(x.g); picks.push(x); } if (picks.length === 10) break; }
+      const answers = [];
+      const frame = inner => { box.innerHTML = `<div class="quiz-card"><div class="quiz-top"><span class="eyebrow">Vrai ou faux piégé · <em>${daily ? "du jour" : "bonus"}</em></span>
+        <button type="button" class="link" id="tf-close">Fermer</button></div>${inner}</div>`; box.querySelector("#tf-close").onclick = reset; };
+      function ask(i) {
+        const x = picks[i];
+        frame(`<div class="dots">${picks.map((_, n) => `<i class="${n < i ? "done" : n === i ? "now" : ""}"></i>`).join("")}</div>
+          <p class="level">Affirmation ${i + 1} / ${picks.length} · lis bien chaque détail</p>
+          <h2 class="qtitle">${esc(x.s)}</h2>
+          <div class="reflect-actions"><button type="button" class="btn" data-v="1">Vrai</button><button type="button" class="btn alt" data-v="0">Faux</button></div>`);
+        box.querySelectorAll("[data-v]").forEach(b => b.onclick = () => verdict(i, b.dataset.v === "1"));
+      }
+      function verdict(i, said) {
+        const x = picks[i], ok = said === x.v; answers.push(ok);
+        const last = i === picks.length - 1;
+        frame(`<p class="level ${ok ? "ok" : "ko"}">${ok ? "✓ Bien vu" : "✗ Piégé !"} — c'était <b>${x.v ? "vrai" : "faux"}</b></p>
+          <h2 class="qtitle">${esc(x.s)}</h2>
+          <p class="tf-why">${esc(x.why)} <em>· ${esc(titleOf(x.b))}</em></p>
+          <div class="reflect-actions"><button type="button" class="btn" id="tf-go">${last ? "Voir mon score" : "Suivante →"}</button></div>`);
+        box.querySelector("#tf-go").onclick = () => last ? finish() : ask(i + 1);
+      }
+      function finish() {
+        const sc = answers.filter(Boolean).length;
+        if (daily) saveDay("tf", sc);
+        frame(`<p class="level">Ton score</p><div class="bigscore">${sc}<small> / ${picks.length}</small></div>
+          <ol class="recap">${picks.map((x, n) => `<li class="${answers[n] ? "ok" : "ko"}"><span class="mark">${answers[n] ? "✓" : "✗"}</span><div><strong>${esc(x.s)}</strong><span>${x.v ? "Vrai" : "Faux"} — ${esc(x.why)}</span></div></li>`).join("")}</ol>
+          <div class="reflect-actions"><button type="button" class="btn" id="tf-again">Dix autres affirmations</button></div>`);
+        box.querySelector("#tf-again").onclick = () => play(false);
+      }
+      ask(0);
+    }
+  }
+
 
   // ---------- Expositions ----------
   const STOPW = new Set("le la les un une des du de au aux et en dans par pour sur sous avec sans est ses son sa the of a an and der die das el los las il".split(" "));
@@ -825,7 +860,8 @@
     window.scrollTo(0, 0);
 
     initQuiz();
-    initFrise();
+    initRiddle();
+    initTf();
     initExpos();
     initZoom();
     if (parts[0] === "expositions" && exposPending()) {
