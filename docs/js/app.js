@@ -21,7 +21,7 @@
 
   const home = () => `
     <p class="eyebrow">Littérature</p>
-    <h1>Mes écrits</h1>
+    <h1>Sola Scriptura</h1>
     <p class="lead">Un lieu simple pour rassembler tout ce que j'écris : lectures, réflexions, textes.</p>
     <div class="sections">
       ${sections.map(s => `
@@ -838,20 +838,20 @@
 
   function render() {
     const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-    let html, title = "Mes écrits";
+    let html, title = "Sola Scriptura";
     if (!parts.length) html = home();
-    else if (parts[0] === "carnet" && !parts[1]) { html = carnet(); title = "Carnet II — Mes écrits"; }
+    else if (parts[0] === "carnet" && !parts[1]) { html = carnet(); title = "Carnet II — Sola Scriptura"; }
     else if (parts[0] === "carnet") {
       const r = reviews.find(x => x.id === parts[1]);
       html = r ? review(r) : notFound();
-      if (r) title = r.title + " — Mes écrits";
-    } else if (parts[0] === "expositions") { html = exposHtml(); title = "Expositions — Mes écrits"; }
-    else if (parts[0] === "frise") { html = friseHtml(); title = "Frise chronologique — Mes écrits"; }
-    else if (parts[0] === "pamphlets" && !parts[1]) { html = pamphletList(); title = "Pamphlets ironiques — Mes écrits"; }
+      if (r) title = r.title + " — Sola Scriptura";
+    } else if (parts[0] === "expositions") { html = exposHtml(); title = "Expositions — Sola Scriptura"; }
+    else if (parts[0] === "frise") { html = friseHtml(); title = "Frise chronologique — Sola Scriptura"; }
+    else if (parts[0] === "pamphlets" && !parts[1]) { html = pamphletList(); title = "Pamphlets ironiques — Sola Scriptura"; }
     else if (parts[0] === "pamphlets") {
       const p = pamphlets.find(x => x.id === parts[1]);
       html = p ? pamphlet(p) : notFound();
-      if (p) title = p.title + " — Mes écrits";
+      if (p) title = p.title + " — Sola Scriptura";
     } else html = notFound();
 
     app.innerHTML = html;

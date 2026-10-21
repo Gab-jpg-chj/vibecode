@@ -35,7 +35,7 @@
     app.innerHTML = `
       <section class="gate">
         <p class="eyebrow">Accès privé</p>
-        <h1>Mes écrits</h1>
+        <h1>Sola Scriptura</h1>
         <p class="lead">Entre le mot de passe pour lire.</p>
         <form id="gate-form" autocomplete="on">
           <input id="gate-pw" type="password" placeholder="Mot de passe" autocomplete="current-password" aria-label="Mot de passe" required>
@@ -61,7 +61,7 @@
   };
 
   if (!window.crypto || !crypto.subtle) {
-    app.innerHTML = '<section class="gate"><h1>Mes écrits</h1><p class="lead">Ce navigateur ne permet pas le déchiffrement (il faut une connexion sécurisée, https).</p></section>';
+    app.innerHTML = '<section class="gate"><h1>Sola Scriptura</h1><p class="lead">Ce navigateur ne permet pas le déchiffrement (il faut une connexion sécurisée, https).</p></section>';
     return;
   }
   const saved = read(KEY);
