@@ -413,3 +413,19 @@ main.wide { width: min(980px, 100% - 32px); }
 .tf-why { margin: 4px 0 16px; color: var(--muted); font-size: .95rem; line-height: 1.5; }
 .btn.alt { background: var(--card); color: var(--ink); border: 1px solid var(--yellow); }
 .level.ok { color: var(--teal); } .level.ko { color: var(--rose); }
+
+/* Série de jours consécutifs */
+.streak { margin: 26px 0 6px; padding: 16px 20px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 4px; }
+.streak-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.streak .flame { font-size: 2rem; line-height: 1; }
+.streak-main > div:nth-child(2) { display: flex; flex-direction: column; flex: 1 1 200px; line-height: 1.25; }
+.streak strong { font-family: var(--serif); font-size: 1.7rem; font-weight: 500; }
+.streak-main span:not(.flame) { color: var(--muted); font-size: .9rem; }
+.streak .days { display: flex; gap: 6px; }
+.streak .days i { width: 26px; height: 26px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-style: normal; }
+.streak .days b { font-size: .65rem; font-weight: 500; color: var(--muted); }
+.streak .days i.on { background: var(--yellow); border-color: var(--yellow); } .streak .days i.on b { color: #2a2208; }
+.streak .days i.today { box-shadow: 0 0 0 2px color-mix(in srgb, var(--yellow) 45%, transparent); }
+.streak .bar { height: 8px; margin: 12px 0 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.streak .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--yellow), #e8873a); border-radius: 6px; transition: width .5s ease; }
+.streak p { margin: 0; font-size: .85rem; color: var(--muted); } .streak p b { color: var(--ink); font-weight: 500; }
