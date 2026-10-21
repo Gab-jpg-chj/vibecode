@@ -23,6 +23,7 @@
     <p class="eyebrow">Littérature</p>
     <h1>Sola Scriptura</h1>
     <p class="lead">Un lieu simple pour rassembler tout ce que j'écris : lectures, réflexions, textes.</p>
+    ${streakHtml()}
     <div class="sections">
       ${sections.map(s => `
         <${s.soon ? "div" : "a"} class="tile ${s.soon ? "soon" : ""}" ${s.soon ? "" : `href="${s.href}"`}>
@@ -70,6 +71,44 @@
     return q.k.some(group => group.every(w => has(norm(w))));
   };
   const todayKey = () => { const t = new Date(); return t.getFullYear() + "-" + (t.getMonth() + 1) + "-" + t.getDate(); };
+  // ---------- Série de jours consécutifs ----------
+  const STREAK_KEY = "streak:days";
+  const dayIdx = key => { const [y, m, d] = key.split("-").map(Number); return Math.floor(Date.UTC(y, m - 1, d) / 864e5); };
+  const todayIdx = () => dayIdx(todayKey());
+  const playedDays = () => { try { return new Set((JSON.parse(localStorage.getItem(STREAK_KEY)) || []).map(dayIdx)); } catch (e) { return new Set(); } };
+  const MILESTONES = [3, 7, 14, 30, 60, 100, 200, 365];
+  const streakInfo = () => {
+    const set = playedDays(), t = todayIdx();
+    const today = set.has(t);
+    let cur = 0, i = today ? t : t - 1;
+    while (set.has(i)) { cur++; i--; }
+    const all = [...set].sort((a, b) => a - b);
+    let best = 0, run = 0, prev = null;
+    all.forEach(d => { run = prev !== null && d === prev + 1 ? run + 1 : 1; best = Math.max(best, run); prev = d; });
+    const last7 = Array.from({ length: 7 }, (_, n) => { const d = t - 6 + n; return { played: set.has(d), today: d === t, label: ["D", "L", "M", "M", "J", "V", "S"][new Date(d * 864e5).getUTCDay()] }; });
+    const next = MILESTONES.find(m => m > cur) || cur + 100, prevM = [0, ...MILESTONES].filter(m => m <= cur).pop();
+    return { cur, best: Math.max(best, cur), today, last7, next, pct: Math.round(100 * (cur - prevM) / (next - prevM)), total: set.size };
+  };
+  const streakHtml = () => {
+    const x = streakInfo();
+    const title = x.cur === 0 ? "Lance ta série !" : `${x.cur} jour${x.cur > 1 ? "s" : ""} de suite`;
+    const sub = x.today ? "✓ Série prolongée aujourd'hui" : x.cur ? "Joue aujourd'hui pour ne pas la perdre !" : "Un jeu aujourd'hui, et ta série commence.";
+    return `<div class="streak" aria-label="Série de jours consécutifs">
+      <div class="streak-main"><span class="flame" aria-hidden="true">${x.cur ? "🔥" : "✦"}</span>
+        <div><strong>${title}</strong><span>${sub}</span></div>
+        <div class="days" aria-hidden="true">${x.last7.map(d => `<i class="${d.played ? "on" : ""} ${d.today ? "today" : ""}" title="${d.label}"><b>${d.label}</b></i>`).join("")}</div></div>
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${x.next}" aria-valuenow="${x.cur}"><i style="width:${x.pct}%"></i></div>
+      <p>Prochain palier : <b>${x.next} jours</b> · Record : <b>${x.best}</b> · ${x.total} jour${x.total > 1 ? "s" : ""} joué${x.total > 1 ? "s" : ""} au total</p></div>`;
+  };
+  const refreshStreak = () => document.querySelectorAll(".streak").forEach(el => { el.outerHTML = streakHtml(); });
+  const markPlayed = () => {
+    try {
+      const days = JSON.parse(localStorage.getItem(STREAK_KEY)) || [], k = todayKey();
+      if (!days.includes(k)) { days.push(k); localStorage.setItem(STREAK_KEY, JSON.stringify(days.slice(-800))); }
+    } catch (e) {}
+    refreshStreak();
+  };
+
   const dayBook = () => {
     const pool = reviews.filter(r => (r.quiz || []).length >= 5);
     if (!pool.length) return null;
@@ -156,30 +195,13 @@
     try { const v = localStorage.getItem("quiz:" + todayKey()); if (v !== null) return +v; } catch (e) {}
     return null;
   };
-  const reflectDone = () => { try { return localStorage.getItem("reflect:" + todayKey()) !== null; } catch (e) { return false; } };
-  const dayPhilo = () => {
-    if (!philo.length) return null;
-    const t = new Date();
-    return philo[Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 864e5) % philo.length];
-  };
-  // Deux questions ouvertes sur le livre du jour (données `open`, sinon questions génériques) + une question philosophique.
-  const reflectItems = book => {
-    const own = book.open || [];
-    const items = [
-      own[0] || { t: "avis", q: "Quel est l'argument central de l'auteur ? Formule-le avec tes mots, sans relire.", pistes: (book.notes || []).map(n => n.title) },
-      own[1] || { t: "avis", q: "Es-tu d'accord avec l'auteur ? Qu'est-ce qui te résiste dans ce livre ?", pistes: [] }
-    ];
-    const ph = dayPhilo();
-    if (ph) items.push({ t: "philo", theme: ph.theme, q: ph.q, pistes: ph.pistes || [], livres: ph.livres || [] });
-    return items;
-  };
   const bannerHtml = () => {
     const book = dayBook(), done = doneToday();
     return `<button type="button" class="quiz-banner" id="quiz-start">
         <span class="spark">✦</span>
         <span class="qtxt"><strong>Test ta mémoire !</strong>
-        <em>${done === null ? `Aujourd'hui, ${esc(book.title)} !` : `Fait aujourd'hui : ${done} / 5 — ${reflectDone() ? "le jeu bonus reste ouvert" : "à toi de réfléchir, puis jeu bonus"}`}</em></span>
-        <span class="go">${done === null ? "Jouer →" : reflectDone() ? "Jeu bonus →" : "Réfléchir →"}</span>
+        <em>${done === null ? `Aujourd'hui, ${esc(book.title)} !` : `Fait aujourd'hui : ${done} / 5 — le jeu bonus reste ouvert`}</em></span>
+        <span class="go">${done === null ? "Jouer →" : "Jeu bonus →"}</span>
       </button>`;
   };
   const quizHtml = () => dayBook() ? `<section class="quiz" id="quiz" aria-live="polite">${bannerHtml()}</section>` : "";
@@ -188,7 +210,7 @@
     const box = document.getElementById("quiz");
     if (!box) return;
     const book = dayBook();
-    const start = () => { box.querySelector("#quiz-start").onclick = () => doneToday() === null ? askQuestion(0, []) : reflectDone() ? bonus(0, 0) : reflect(0); };
+    const start = () => { box.querySelector("#quiz-start").onclick = () => doneToday() === null ? askQuestion(0, []) : bonus(0, 0); };
     start();
 
     const frame = inner => { box.innerHTML = `<div class="quiz-card">${inner}</div>`; };
@@ -217,6 +239,7 @@
       const score = res.filter(x => x.ok).length;
       scoreToday = score;
       try { localStorage.setItem("quiz:" + todayKey(), score); } catch (e) {}
+      markPlayed();
       const msg = ["Il faut relire tes commentaires !", "Aïe… relis-moi ça.", "Pas mal, mais tu peux mieux faire.", "Bien joué, la mémoire est là.", "Très bien, presque parfait !", "Sans faute, mémoire d'éléphant !"][score];
       frame(`
         <div class="quiz-top"><span class="eyebrow">Livre du jour : <em>${esc(book.title)}</em></span>
@@ -229,71 +252,9 @@
             <div><strong>${esc(x.q.q)}</strong>
             <span>Ta réponse : <em>${x.a ? esc(x.a) : "—"}</em></span>
             ${x.ok ? "" : `<span>Bonne réponse : <b>${esc(x.q.r)}</b></span>`}</div></li>`).join("")}</ol>
-        <button type="button" class="btn" id="quiz-bonus">Réfléchir →</button>`);
+        <button type="button" class="btn" id="quiz-bonus">Jeu bonus →</button>`);
       box.querySelector("#quiz-close").onclick = reset;
-      box.querySelector("#quiz-bonus").onclick = () => reflect(0);
-    }
-
-    // questions ouvertes : 2 sur le livre du jour, puis 1 question philosophique ; la réponse s'écrit avant de voir les pistes
-    const REFLECT_LABEL = { pourquoi: "Pourquoi ?", compare: "Compare", avis: "Ton avis", philo: "Question philosophique" };
-    function reflect(i) {
-      const items = reflectItems(book), it = items[i], last = i === items.length - 1;
-      frame(`
-        <div class="quiz-top"><span class="eyebrow">Réfléchir · <em>${it.t === "philo" ? esc(it.theme) : esc(book.title)}</em></span>
-          <button type="button" class="link" id="quiz-close">Fermer</button></div>
-        <div class="dots">${items.map((_, n) => `<i class="${n < i ? "done" : n === i ? "now" : ""}"></i>`).join("")}</div>
-        <p class="level">${REFLECT_LABEL[it.t] || "Question"} · ${i + 1} / ${items.length}</p>
-        <h2 class="qtitle">${esc(it.q)}</h2>
-        <form id="reflect-form">
-          <textarea id="reflect-answer" rows="6" placeholder="Réponds avec tes mots : une thèse, deux arguments, une objection…" aria-label="Ta réponse"></textarea>
-          ${it.t === "philo" ? `<label class="reflect-book"><span class="level">Quel livre lu utiliserais-tu pour y répondre ?</span>
-            <input id="reflect-book" type="text" list="reflect-books" autocomplete="off" placeholder="Un titre de ton carnet…" aria-label="Livre utilisé pour répondre">
-            <datalist id="reflect-books">${reviews.map(r => `<option value="${esc(r.title)}"></option>`).join("")}</datalist></label>` : ""}
-          <div class="reflect-actions"><button type="submit" class="btn">Valider ma réponse</button>
-          <button type="button" class="link" id="reflect-skip">${last ? "Passer · jeu bonus →" : "Passer →"}</button></div>
-        </form>`);
-      box.querySelector("#quiz-close").onclick = reset;
-      const area = box.querySelector("#reflect-answer"); area.focus();
-      const next = () => last ? finish() : reflect(i + 1);
-      const finish = () => { try { localStorage.setItem("reflect:" + todayKey(), "1"); } catch (e) {} bonus(0, 0); };
-      box.querySelector("#reflect-skip").onclick = next;
-      box.querySelector("#reflect-form").onsubmit = e => {
-        e.preventDefault();
-        const a = area.value.trim();
-        if (!a) return next();
-        const bookIn = box.querySelector("#reflect-book"), chosen = bookIn ? bookIn.value.trim() : "";
-        const hist = store.get("reflect:history", []);
-        hist.push({ d: todayKey(), book: it.t === "philo" ? null : book.id, t: it.t, q: it.q, a, ...(chosen ? { used: chosen } : {}) });
-        store.set("reflect:history", hist.slice(-300));
-        showPistes(i, it, a, last, next, chosen);
-      };
-    }
-
-    function showPistes(i, it, answer, last, next, chosen) {
-      frame(`
-        <div class="quiz-top"><span class="eyebrow">Réfléchir · <em>${it.t === "philo" ? esc(it.theme) : esc(book.title)}</em></span>
-          <button type="button" class="link" id="quiz-close">Fermer</button></div>
-        <h2 class="qtitle">${esc(it.q)}</h2>
-        <p class="level">Ta réponse</p>
-        <blockquote class="myanswer">${esc(answer).replace(/\n/g, "<br>")}</blockquote>
-        ${it.pistes && it.pistes.length ? `<p class="level">Pistes de réflexion</p>
-        <ul class="pistes">${it.pistes.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
-        <p class="hint"><em>Compare : as-tu une thèse nette, des arguments, une objection, un exemple tiré de tes lectures ?</em></p>` : ""}
-        ${it.livres && it.livres.length ? `<p class="level">Quel livre lu utiliserais-tu pour y répondre ?</p>
-        ${chosen ? `<p class="hint">Ton choix : <em>${esc(chosen)}</em></p>` : ""}
-        <ul class="livres">${it.livres.map(l => { const b = bookOf(l.b); if (!b) return "";
-          const mine = chosen && norm(b.title).includes(norm(chosen)) || chosen && norm(chosen).includes(norm(b.title));
-          return `<li class="${mine ? "mine" : ""}"><a href="#/carnet/${b.id}"><strong>${esc(b.title)}</strong>${b.author ? ` <em>· ${esc(b.author)}</em>` : ""}</a>
-            <span>${esc(l.these)}</span></li>`; }).join("")}</ul>
-        <p class="hint"><em>Thèses tirées de tes notes sur chaque livre.</em></p>` : ""}
-        <div class="reflect-actions"><button type="button" class="btn" id="reflect-next">${last ? "Jeu bonus →" : "Question suivante →"}</button>
-        <button type="button" class="link" id="reflect-copy">Copier ma réponse</button></div>`);
-      box.querySelector("#quiz-close").onclick = reset;
-      box.querySelector("#reflect-next").onclick = next;
-      box.querySelector("#reflect-copy").onclick = e => {
-        const txt = it.q + "\n\n" + answer;
-        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { e.target.textContent = "Copié ✓"; }, () => { e.target.textContent = "Copie impossible"; });
-      };
+      box.querySelector("#quiz-bonus").onclick = () => bonus(0, 0);
     }
 
     // jeu bonus : une phrase tirée au hasard dans tous les commentaires
@@ -319,6 +280,7 @@
       // on valide la réponse et on enchaîne tout de suite sur la citation suivante
       const answer = r => {
         const good = r.id === pick.r.id;
+        markPlayed();
         bonus(played + 1, won + (good ? 1 : 0), { good, title: pick.r.title });
       };
 
@@ -345,6 +307,7 @@
     <a class="back" href="#/">← Accueil</a>
     <h1>Carnet II</h1>
     <p class="lead">Août 2025 - Aujourd'hui</p>
+    ${streakHtml()}
     ${quizHtml()}
     ${riddles.length >= 3 ? `<section class="quiz" id="riddle-game" aria-live="polite">${riddleBanner()}</section>` : ""}
     ${tf.length >= 10 ? `<section class="quiz" id="tf-game" aria-live="polite">${tfBanner()}</section>` : ""}
@@ -443,7 +406,7 @@
         box.querySelector("#riddle-go").onclick = () => last ? finish() : ask(i + 1, 0);
       }
       function finish() {
-        if (daily) saveDay("riddle", total);
+        markPlayed(); if (daily) saveDay("riddle", total);
         frame(`<p class="level">Ton score</p><div class="bigscore">${total}<small> / ${rounds.reduce((s, r) => s + r.hints.length, 0)}</small></div>
           <ol class="recap">${results.map(x => `<li class="${x.pts ? "ok" : "ko"}"><span class="mark">${x.pts}</span><div><strong>${esc(x.r.a)}</strong><span>${esc(titleOf(x.r.b))}</span></div></li>`).join("")}</ol>
           <div class="reflect-actions"><button type="button" class="btn" id="riddle-again">Trois autres énigmes</button></div>`);
@@ -486,7 +449,7 @@
       }
       function finish() {
         const sc = answers.filter(Boolean).length;
-        if (daily) saveDay("tf", sc);
+        markPlayed(); if (daily) saveDay("tf", sc);
         frame(`<p class="level">Ton score</p><div class="bigscore">${sc}<small> / ${picks.length}</small></div>
           <ol class="recap">${picks.map((x, n) => `<li class="${answers[n] ? "ok" : "ko"}"><span class="mark">${answers[n] ? "✓" : "✗"}</span><div><strong>${esc(x.s)}</strong><span>${x.v ? "Vrai" : "Faux"} — ${esc(x.why)}</span></div></li>`).join("")}</ol>
           <div class="reflect-actions"><button type="button" class="btn" id="tf-again">Dix autres affirmations</button></div>`);
@@ -571,6 +534,7 @@
       box.querySelector("#expo-form").onsubmit = e => { e.preventDefault(); show(daily, picks, [...box.querySelectorAll("input")].map(i => i.value.trim())); };
     }
     function show(daily, picks, ans) {
+      markPlayed();
       const res = picks.map((w, n) => ({ w, a: ans[2 * n], t: ans[2 * n + 1],
         okA: !!ans[2 * n] && isRight(ans[2 * n], { k: artistK(w) }), okT: !!ans[2 * n + 1] && isRight(ans[2 * n + 1], { k: titleK(w) }) }));
       const score = res.reduce((s, x) => s + x.okA + x.okT, 0);
@@ -653,7 +617,7 @@
         box.querySelector("#zoom-next").onclick = () => last ? finish() : ask(i + 1, 0);
       }
       function finish() {
-        if (daily) { try { localStorage.setItem("zoom:" + todayKey(), score); } catch (e) {} }
+        markPlayed(); if (daily) { try { localStorage.setItem("zoom:" + todayKey(), score); } catch (e) {} }
         frame(`<p class="level">Ton score</p><div class="bigscore">${score}<small> / 12</small></div>
           <ol class="recap">${results.map(x => `<li class="${x.pts ? "ok" : "ko"}"><span class="mark">${x.pts}</span><div><strong>${esc(x.r.w.title)}</strong><span>${esc(x.r.w.artist)}</span></div></li>`).join("")}</ol>
           <div class="reflect-actions"><button type="button" class="btn" id="zoom-again">Trois autres toiles</button></div>`);
