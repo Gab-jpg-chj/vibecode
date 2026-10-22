@@ -308,6 +308,7 @@
     <h1>Carnet II</h1>
     <p class="lead">Août 2025 - Aujourd'hui</p>
     ${streakHtml()}
+    ${chronoBoxHtml()}
     ${quizHtml()}
     ${riddles.length >= 3 ? `<section class="quiz" id="riddle-game" aria-live="polite">${riddleBanner()}</section>` : ""}
     ${tf.length >= 10 ? `<section class="quiz" id="tf-game" aria-live="polite">${tfBanner()}</section>` : ""}
@@ -456,6 +457,130 @@
         box.querySelector("#tf-again").onclick = () => play(false);
       }
       ask(0);
+    }
+  }
+
+
+  // ---------- Défi chrono : les 3 jeux enchaînés en 2 minutes, note sur 30 ----------
+  const CHRONO_SECONDS = 120;
+  const chronoReady = () => dayBook() && riddles.length >= 3 && tf.length >= 10;
+  const chronoBoxHtml = () => chronoReady() ? `<section class="quiz" id="chrono-game" aria-live="polite">${chronoBanner()}</section>` : "";
+  const bestChrono = () => { try { const v = localStorage.getItem("chrono:best"); return v === null ? null : +v; } catch (e) { return null; } };
+  const chronoBanner = () => {
+    const best = bestChrono(), d = dayScore("chrono");
+    return `<button type="button" class="quiz-banner" id="chrono-start">
+      <span class="spark">⏱</span>
+      <span class="qtxt"><strong>Défi chrono · 2 minutes</strong>
+        <em>${d === null ? "Qui suis-je ?, Test ta mémoire et Vrai ou faux, notés sur 30" : `Aujourd'hui : ${d} / 30`}${best !== null ? ` · meilleur : ${best} / 30` : ""}</em></span>
+      <span class="go">Relever le défi →</span></button>`;
+  };
+  function initChrono() {
+    const box = document.getElementById("chrono-game");
+    if (!box) return;
+    const start = () => { box.querySelector("#chrono-start").onclick = intro; };
+    start();
+    const reset = () => { box.innerHTML = chronoBanner(); start(); };
+    const mmss = ms => { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+
+    function intro() {
+      box.innerHTML = `<div class="quiz-card">
+        <div class="quiz-top"><span class="eyebrow">Défi chrono</span><button type="button" class="link" id="chrono-close">Fermer</button></div>
+        <h2 class="qtitle">Trois jeux, 18 questions, ${CHRONO_SECONDS / 60} minutes.</h2>
+        <ol class="hints"><li><b>Qui suis-je ?</b> · 3 énigmes · 15 points (5 à 1 point selon l'indice)</li>
+          <li><b>Test ta mémoire</b> · 5 questions · 5 points</li>
+          <li><b>Vrai ou faux piégé</b> · 10 affirmations · 10 points</li></ol>
+        <p class="hint">Les questions sans réponse quand le temps est écoulé comptent zéro. Le chrono démarre au clic.</p>
+        <div class="reflect-actions"><button type="button" class="btn" id="chrono-go">Lancer le chrono</button></div></div>`;
+      box.querySelector("#chrono-close").onclick = reset;
+      box.querySelector("#chrono-go").onclick = () => run(dayScore("chrono") === null);
+    }
+
+    function run(daily) {
+      const rand = daily ? seeded(dayNum() * 48271 + 29) : Math.random;
+      const book = dayBook();
+      const items = [
+        ...shuffleWith(riddles, rand).slice(0, 3).map(r => ({ type: "riddle", r })),
+        ...book.quiz.slice(0, 5).map(q => ({ type: "quiz", q })),
+        ...(() => { const seen = new Set(), out = []; for (const x of shuffleWith(tf, rand)) { if (!seen.has(x.g)) { seen.add(x.g); out.push({ type: "tf", x }); } if (out.length === 10) break; } return out; })()
+      ];
+      const res = items.map(() => ({ pts: 0, answered: false }));
+      let i = 0, step = 0, over = false;
+      const t0 = Date.now(), deadline = t0 + CHRONO_SECONDS * 1000;
+      let timer = null;
+
+      box.innerHTML = `<div class="quiz-card">
+        <div class="chrono" id="chrono-bar"><span class="t" id="chrono-t">${mmss(CHRONO_SECONDS * 1000)}</span><div class="cbar"><i id="chrono-fill"></i></div><span class="n" id="chrono-n"></span></div>
+        <div id="chrono-body"></div></div>`;
+      const body = box.querySelector("#chrono-body"), tEl = box.querySelector("#chrono-t"), fill = box.querySelector("#chrono-fill"), bar = box.querySelector("#chrono-bar"), nEl = box.querySelector("#chrono-n");
+
+      const tick = () => {
+        const left = deadline - Date.now();
+        tEl.textContent = mmss(left);
+        fill.style.width = Math.max(0, 100 * left / (CHRONO_SECONDS * 1000)) + "%";
+        bar.classList.toggle("warn", left < 30000); bar.classList.toggle("crit", left < 10000);
+        if (left <= 0) finish();
+      };
+      timer = setInterval(tick, 200);
+
+      const advance = () => { i++; step = 0; i >= items.length ? finish() : show(); };
+      function show() {
+        if (over) return;
+        const it = items[i];
+        nEl.textContent = `${i + 1} / ${items.length}`;
+        if (it.type === "riddle") {
+          const r = it.r, max = r.hints.length;
+          body.innerHTML = `<p class="level">Qui suis-je ? · <b>${max - step} point${max - step > 1 ? "s" : ""}</b></p>
+            <ol class="hints">${r.hints.slice(0, step + 1).map(h => `<li>${esc(h)}</li>`).join("")}</ol>
+            <form id="c-form" autocomplete="off"><input id="c-in" type="text" placeholder="Qui, ou quoi, suis-je ?" aria-label="Ta réponse"><button type="submit" class="btn">Valider</button>
+              <button type="button" class="link" id="c-next">${step === max - 1 ? "Passer" : "Indice suivant →"}</button></form>`;
+          const input = body.querySelector("#c-in"); input.focus();
+          const more = () => { if (step === max - 1) { res[i].answered = true; advance(); } else { step++; show(); } };
+          body.querySelector("#c-next").onclick = more;
+          body.querySelector("#c-form").onsubmit = e => { e.preventDefault(); const a = input.value.trim(); if (a && isRight(a, { k: r.k })) { res[i] = { pts: max - step, answered: true, a }; advance(); } else if (a) more(); };
+        } else if (it.type === "quiz") {
+          body.innerHTML = `<p class="level">Test ta mémoire · ${esc(book.title)}</p><h2 class="qtitle">${esc(it.q.q)}</h2>
+            <form id="c-form" autocomplete="off"><input id="c-in" type="text" placeholder="Ta réponse…" aria-label="Ta réponse"><button type="submit" class="btn">Valider</button></form>`;
+          const input = body.querySelector("#c-in"); input.focus();
+          body.querySelector("#c-form").onsubmit = e => { e.preventDefault(); const a = input.value.trim(); res[i] = { pts: a && isRight(a, it.q) ? 1 : 0, answered: true, a }; advance(); };
+        } else {
+          body.innerHTML = `<p class="level">Vrai ou faux piégé · lis bien chaque détail</p><h2 class="qtitle">${esc(it.x.s)}</h2>
+            <div class="reflect-actions"><button type="button" class="btn" data-v="1">Vrai</button><button type="button" class="btn alt" data-v="0">Faux</button></div>`;
+          body.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { const said = b.dataset.v === "1"; res[i] = { pts: said === it.x.v ? 1 : 0, answered: true, said }; advance(); });
+        }
+      }
+
+      function finish() {
+        if (over) return; over = true; clearInterval(timer);
+        const used = Math.min(CHRONO_SECONDS * 1000, Date.now() - t0), left = Math.max(0, deadline - Date.now());
+        const sum = type => res.reduce((s, r, n) => s + (items[n].type === type ? r.pts : 0), 0);
+        const sR = sum("riddle"), sQ = sum("quiz"), sT = sum("tf"), total = sR + sQ + sT;
+        const done = res.filter(r => r.answered).length;
+        markPlayed();
+        if (daily) saveDay("chrono", total);
+        let isBest = false;
+        try { const b = bestChrono(); if (b === null || total > b) { localStorage.setItem("chrono:best", total); isBest = true; } } catch (e) {}
+        const msg = total >= 26 ? "Mémoire d'exception !" : total >= 20 ? "Très solide." : total >= 14 ? "Bonne base, encore un effort." : total >= 8 ? "Il faut relire tes notes !" : "Courage, ça viendra avec la pratique.";
+        const line = (n, label) => `<li class="${items[n].type}">${label}</li>`;
+        const recap = items.map((it, n) => {
+          const r = res[n], mark = !r.answered ? "—" : (it.type === "riddle" ? r.pts : r.pts ? "✓" : "✗"), ok = r.pts > 0;
+          const label = it.type === "riddle" ? `<strong>${esc(it.r.a)}</strong><span>Qui suis-je ? · ${esc(titleOf(it.r.b))}${r.a ? ` · ta réponse : <em>${esc(r.a)}</em>` : ""}</span>`
+            : it.type === "quiz" ? `<strong>${esc(it.q.q)}</strong><span>Réponse : <b>${esc(it.q.r)}</b>${r.a ? ` · la tienne : <em>${esc(r.a)}</em>` : ""}</span>`
+            : `<strong>${esc(it.x.s)}</strong><span>${it.x.v ? "Vrai" : "Faux"} — ${esc(it.x.why)}</span>`;
+          return `<li class="${!r.answered ? "skip" : ok ? "ok" : "ko"}"><span class="mark">${mark}</span><div>${label}</div></li>`;
+        }).join("");
+        box.innerHTML = `<div class="quiz-card">
+          <div class="quiz-top"><span class="eyebrow">Défi chrono · <em>${daily ? "du jour" : "bonus"}</em></span><button type="button" class="link" id="chrono-close">Fermer</button></div>
+          <p class="level">${left <= 0 ? "⏱ Temps écoulé" : `Terminé avec ${mmss(left)} d'avance`} · ${done} / ${items.length} questions traitées</p>
+          <div class="bigscore">${total}<small> / 30</small></div>
+          <p class="msg"><em>${msg}${isBest ? " Nouveau record !" : ""}</em></p>
+          <div class="chrono-split"><div><b>${sR}</b><span>/ 15<br>Qui suis-je ?</span></div><div><b>${sQ}</b><span>/ 5<br>Test ta mémoire</span></div><div><b>${sT}</b><span>/ 10<br>Vrai ou faux</span></div></div>
+          <ol class="recap">${recap}</ol>
+          <div class="reflect-actions"><button type="button" class="btn" id="chrono-again">Rejouer avec d'autres questions</button></div></div>`;
+        box.querySelector("#chrono-close").onclick = reset;
+        box.querySelector("#chrono-again").onclick = intro;
+      }
+      box.querySelector("#chrono-bar");
+      show();
     }
   }
 
@@ -824,6 +949,7 @@
     window.scrollTo(0, 0);
 
     initQuiz();
+    initChrono();
     initRiddle();
     initTf();
     initExpos();
